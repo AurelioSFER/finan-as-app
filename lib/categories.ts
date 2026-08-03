@@ -33,6 +33,24 @@ export type Category = (typeof CATEGORIES)[number];
 // Categorias que são poupança / investimento — não são "gasto", mas saem da conta.
 export const SAVINGS_CATEGORIES = ["Poupança", "Investimento", "Fundo emergência"];
 
+// Um movimento pode ir direto para um objetivo. Fica guardado na própria
+// categoria, com este prefixo — não é preciso coluna nova na base de dados.
+export const GOAL_PREFIX = "Objetivo: ";
+
+export function goalCategory(name: string): string {
+  return GOAL_PREFIX + name;
+}
+export function isGoalCategory(category: string): boolean {
+  return category.startsWith(GOAL_PREFIX);
+}
+export function goalNameOf(category: string): string | null {
+  return isGoalCategory(category) ? category.slice(GOAL_PREFIX.length) : null;
+}
+/** Sai da conta mas não é consumo: poupança, investimento ou um objetivo. */
+export function isSavings(category: string): boolean {
+  return SAVINGS_CATEGORIES.includes(category) || isGoalCategory(category);
+}
+
 export const ACCOUNTS = ["Caixa", "Revolut", "Conjunta", "Trade Republic", "XTB"] as const;
 export type Account = (typeof ACCOUNTS)[number];
 
@@ -92,6 +110,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export function catColor(category: string): string {
+  if (isGoalCategory(category)) return ACCENT;
   return CATEGORY_COLORS[category] ?? "#868e96";
 }
 
@@ -124,6 +143,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export function catIcon(category: string): string {
+  if (isGoalCategory(category)) return "🎯";
   return CATEGORY_ICONS[category] ?? "•";
 }
 
@@ -165,5 +185,7 @@ export const CATEGORY_TYPE: Record<string, string> = {
 };
 
 export function typeOf(category: string): string {
+  // dinheiro que vai para um objetivo conta como poupança no Plano
+  if (isGoalCategory(category)) return "Poupança";
   return CATEGORY_TYPE[category] ?? "Por classificar";
 }

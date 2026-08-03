@@ -20,6 +20,14 @@ export default async function ImportPage() {
     rules[r.key] = r.category;
   });
 
+  const { data: g } = await supabase
+    .from("goals")
+    .select("name")
+    .eq("space", space)
+    .eq("done", false)
+    .order("sort", { ascending: true });
+  const goals = (g ?? []).map((r: { name: string }) => r.name);
+
   return (
     <div className="container">
       <TopBar email={user?.email} space={space} />
@@ -27,7 +35,7 @@ export default async function ImportPage() {
       <p className="muted" style={{ marginBottom: 18 }}>
         Cola o Excel/CSV do banco (Caixa ou Revolut). Eu leio, adivinho as categorias pela memória, e tu confirmas.
       </p>
-      <Import rules={rules} defaultAccount={defaultAccount} />
+      <Import rules={rules} defaultAccount={defaultAccount} goals={goals} />
       <BottomNav />
     </div>
   );

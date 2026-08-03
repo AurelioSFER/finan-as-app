@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { CATEGORIES, type Expense } from "@/lib/categories";
+import { isGoalCategory, type Expense } from "@/lib/categories";
 import { merchantKey } from "@/lib/merchantKey";
+import CategorySelect from "@/components/CategorySelect";
 
 function eur2(n: number) {
   return "€" + n.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -13,7 +14,16 @@ function monthOf(d: string) {
   return d.slice(0, 7);
 }
 
-export default function Expenses({ initial, space }: { initial: Expense[]; space: string }) {
+export default function Expenses({
+  initial,
+  space,
+  goals,
+}: {
+  initial: Expense[];
+  space: string;
+  /** Nomes dos objetivos ativos — aparecem no seletor de categoria. */
+  goals: string[];
+}) {
   const supabase = createClient();
   const [rows, setRows] = useState<Expense[]>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +54,9 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
   async function changeCategory(row: Expense, category: string) {
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, category } : r)));
     await supabase.from("expenses").update({ category }).eq("id", row.id);
-    if (category !== "Outros") {
+    // Objetivos não se aprendem: a meta fecha-se um dia e a regra ficaria a
+    // mandar movimentos para um objetivo que já não existe.
+    if (category !== "Outros" && !isGoalCategory(category)) {
       await supabase.from("merchant_rules").upsert({ key: merchantKey(row.description), category }, { onConflict: "key" });
     }
   }
@@ -77,14 +89,13 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
             </option>
           ))}
         </select>
-        <select className="select f-cat" aria-label="Categoria" value={fCat} onChange={(e) => setFCat(e.target.value)}>
-          <option value="all">Todas as categorias</option>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        <CategorySelect
+          className="select f-cat"
+          value={fCat}
+          onChange={setFCat}
+          goals={goals}
+          includeAll
+        />
         <input className="input f-search" placeholder="Procurar…" aria-label="Procurar" value={fText} onChange={(e) => setFText(e.target.value)} />
       </div>
 
@@ -117,18 +128,7 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
                   {r.flag === "P" && <span className="badge P" style={{ marginLeft: 6 }}>P</span>}
                 </td>
                 <td className="td-cat">
-                  <select
-                    className="select sel-cell"
-                    aria-label="Categoria"
-                    value={r.category}
-                    onChange={(e) => changeCategory(r, e.target.value)}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                  <CategorySelect value={r.category} onChange={(v) => changeCategory(r, v)} goals={goals} />
                 </td>
                 <td className={"n td-amt " + (r.kind === "entrada" ? "amount-in" : "amount-out")}>
                   {r.kind === "entrada" ? "+" : "−"}

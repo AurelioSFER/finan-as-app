@@ -13,7 +13,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import { catColor, catIcon, typeOf, SAVINGS_CATEGORIES, type Expense } from "@/lib/categories";
+import { catColor, catIcon, typeOf, isSavings, type Expense } from "@/lib/categories";
 import {
   CHART_IN,
   CHART_OUT,
@@ -121,7 +121,7 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
       const a = map.get(m) ?? { in: 0, out: 0, save: 0 };
       if (r.kind === "entrada") a.in += r.amount;
       else if (r.flag !== "R") {
-        if (SAVINGS_CATEGORIES.includes(r.category)) a.save += r.amount;
+        if (isSavings(r.category)) a.save += r.amount;
         else a.out += r.amount;
       }
       map.set(m, a);
@@ -138,10 +138,10 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
 
   const entradas = inMonth.filter((r) => r.kind === "entrada").reduce((a, r) => a + r.amount, 0);
   const gastosReais = inMonth
-    .filter((r) => r.kind === "gasto" && r.flag !== "R" && !SAVINGS_CATEGORIES.includes(r.category))
+    .filter((r) => r.kind === "gasto" && r.flag !== "R" && !isSavings(r.category))
     .reduce((a, r) => a + r.amount, 0);
   const poupado = inMonth
-    .filter((r) => r.kind === "gasto" && r.flag !== "R" && SAVINGS_CATEGORIES.includes(r.category))
+    .filter((r) => r.kind === "gasto" && r.flag !== "R" && isSavings(r.category))
     .reduce((a, r) => a + r.amount, 0);
   const saldo = entradas - gastosReais - poupado;
 
@@ -162,7 +162,7 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();
     inMonth
-      .filter((r) => r.kind === "gasto" && r.flag !== "R" && !SAVINGS_CATEGORIES.includes(r.category))
+      .filter((r) => r.kind === "gasto" && r.flag !== "R" && !isSavings(r.category))
       .forEach((r) => map.set(r.category, (map.get(r.category) ?? 0) + r.amount));
     return Array.from(map.entries())
       .map(([category, value]) => ({ category, value: Math.round(value * 100) / 100 }))
@@ -205,7 +205,7 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
             monthOf(r.date) === m &&
             r.kind === "gasto" &&
             r.flag !== "R" &&
-            !SAVINGS_CATEGORIES.includes(r.category)
+            !isSavings(r.category)
         )
         .forEach((r) => map.set(r.category, (map.get(r.category) ?? 0) + r.amount));
       return map;
@@ -231,7 +231,7 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
   const maiorGasto = useMemo(
     () =>
       inMonth
-        .filter((r) => r.kind === "gasto" && r.flag !== "R" && !SAVINGS_CATEGORIES.includes(r.category))
+        .filter((r) => r.kind === "gasto" && r.flag !== "R" && !isSavings(r.category))
         .sort((a, b) => b.amount - a.amount)[0],
     [inMonth]
   );

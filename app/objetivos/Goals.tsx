@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { goalCategory } from "@/lib/categories";
 import type { Capacity } from "@/lib/plan";
 
 export type Source = "manual" | "fundo" | "investimentos";
@@ -83,6 +84,7 @@ export default function Goals({
   autoInvest,
   pace,
   plan,
+  movimentos,
 }: {
   initial: Goal[];
   space: string;
@@ -90,6 +92,8 @@ export default function Goals({
   autoInvest: number;
   pace: number;
   plan: Capacity;
+  /** Somas do extrato atribuídas a cada objetivo, por nome. */
+  movimentos: Record<string, number>;
 }) {
   const supabase = createClient();
   const [goals, setGoals] = useState<Goal[]>(initial);
@@ -111,10 +115,12 @@ export default function Goals({
     note: "",
   });
 
+  /** O que já lá está: a base do objetivo mais os movimentos do extrato que lhe atribuíste. */
   function savedOf(g: Goal): number {
-    if (g.source === "fundo") return autoFundo;
-    if (g.source === "investimentos") return autoInvest;
-    return g.saved;
+    const doExtrato = movimentos[g.name] ?? 0;
+    if (g.source === "fundo") return autoFundo + doExtrato;
+    if (g.source === "investimentos") return autoInvest + doExtrato;
+    return g.saved + doExtrato;
   }
 
   const active = goals.filter((g) => !g.done);
@@ -226,6 +232,7 @@ export default function Goals({
 
   async function patch(id: string, fields: Partial<Goal>) {
     const prev = goals;
+    const antes = goals.find((g) => g.id === id);
     setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, ...fields } : g)));
     const { error } = await supabase
       .from("goals")
@@ -234,6 +241,15 @@ export default function Goals({
     if (error) {
       setError(error.message);
       setGoals(prev);
+      return;
+    }
+    // A ligação aos movimentos é feita pelo nome: se ele muda, os movimentos
+    // já atribuídos têm de o acompanhar, senão o objetivo perde esse dinheiro.
+    if (fields.name && antes && fields.name !== antes.name) {
+      await supabase
+        .from("expenses")
+        .update({ category: goalCategory(fields.name) })
+        .eq("category", goalCategory(antes.name));
     }
   }
 
@@ -386,6 +402,7 @@ export default function Goals({
                 <div className="muted" style={{ fontSize: 12.5 }}>
                   {eur2(saved)} de {eur0(g.target)}
                   {auto && <> · automático</>}
+                  {(movimentos[g.name] ?? 0) > 0 && <> · {eur2(movimentos[g.name])} do extrato</>}
                 </div>
               </div>
               <div className="num" style={{ fontWeight: 800, fontSize: 18, color: atingido ? "var(--good)" : "var(--accent-2)" }}>

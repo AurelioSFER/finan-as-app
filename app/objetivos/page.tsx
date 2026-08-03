@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
-import { SAVINGS_CATEGORIES } from "@/lib/categories";
+import { goalNameOf, isSavings } from "@/lib/categories";
 import { parseBudgetRows, planCapacity, planForMonth } from "@/lib/plan";
 import Goals, { type Goal } from "./Goals";
 
@@ -53,22 +53,32 @@ export default async function ObjetivosPage() {
   const { data: inv } = await supabase.from("holdings").select("value").eq("kind", "investimento");
   const autoInvest = (inv ?? []).reduce((a, r: any) => a + Number(r.value), 0);
 
-  // ---- Ritmo: média mensal do que foi para poupança/investimento neste espaço
+  // ---- Movimentos do extrato: os que foram para poupança e os que foram
+  // atribuídos diretamente a um objetivo.
   const { data: sav } = await supabase
     .from("expenses")
     .select("date, amount, category, account, flag")
-    .eq("kind", "gasto")
-    .in("category", SAVINGS_CATEGORIES);
-  const rows = (sav ?? []).filter((r: any) =>
-    space === "conjunta" ? r.account === "Conjunta" : r.account !== "Conjunta"
+    .eq("kind", "gasto");
+  const rows = (sav ?? []).filter(
+    (r: any) =>
+      r.flag !== "R" && (space === "conjunta" ? r.account === "Conjunta" : r.account !== "Conjunta")
   );
+
+  // Ritmo: média mensal do que saiu para poupança, investimento ou objetivos
   const byMonth = new Map<string, number>();
   for (const r of rows as any[]) {
-    if (r.flag === "R") continue;
+    if (!isSavings(r.category)) continue;
     const m = String(r.date).slice(0, 7);
     byMonth.set(m, (byMonth.get(m) ?? 0) + Number(r.amount));
   }
   const pace = byMonth.size ? [...byMonth.values()].reduce((a, b) => a + b, 0) / byMonth.size : 0;
+
+  // Quanto já foi para cada objetivo através do extrato
+  const movimentos: Record<string, number> = {};
+  for (const r of rows as any[]) {
+    const nome = goalNameOf(r.category);
+    if (nome) movimentos[nome] = (movimentos[nome] ?? 0) + Number(r.amount);
+  }
 
   // ---- Orçamento planeado (página Plano): é ele que define quanto há por mês para objetivos.
   // Usa o plano em vigor no mês corrente.
@@ -89,7 +99,15 @@ export default async function ObjetivosPage() {
         Metas de poupança calculadas a partir do teu Plano: quanto pões de lado por mês e quando lá chegas.
       </p>
 
-      <Goals initial={goals} space={space} autoFundo={autoFundo} autoInvest={autoInvest} pace={pace} plan={plan} />
+      <Goals
+        initial={goals}
+        space={space}
+        autoFundo={autoFundo}
+        autoInvest={autoInvest}
+        pace={pace}
+        plan={plan}
+        movimentos={movimentos}
+      />
 
       <BottomNav />
     </div>

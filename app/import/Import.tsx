@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { CATEGORIES, ACCOUNTS, FLAGS } from "@/lib/categories";
+import { ACCOUNTS, FLAGS, isGoalCategory } from "@/lib/categories";
+import CategorySelect from "@/components/CategorySelect";
 import { parseStatement, type ParsedRow } from "@/lib/parseStatement";
 import { merchantKey } from "@/lib/merchantKey";
 import { autoCategory } from "@/lib/autoCategory";
@@ -14,7 +15,16 @@ function eur2(n: number) {
   return "€" + n.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function Import({ rules, defaultAccount }: { rules: Record<string, string>; defaultAccount: string }) {
+export default function Import({
+  rules,
+  defaultAccount,
+  goals,
+}: {
+  rules: Record<string, string>;
+  defaultAccount: string;
+  /** Nomes dos objetivos ativos — aparecem no seletor de categoria. */
+  goals: string[];
+}) {
   const supabase = createClient();
   const [raw, setRaw] = useState("");
   const [drafts, setDrafts] = useState<Draft[] | null>(null);
@@ -94,7 +104,8 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
     // Ensinar a memória: chave -> categoria (dedupe, última vence). Ignora "Outros".
     const ruleMap = new Map<string, string>();
     chosen.forEach((d) => {
-      if (d.category && d.category !== "Outros") ruleMap.set(d.key, d.category);
+      // objetivos ficam de fora: a meta fecha-se e a regra ficaria órfã
+      if (d.category && d.category !== "Outros" && !isGoalCategory(d.category)) ruleMap.set(d.key, d.category);
     });
     if (ruleMap.size > 0) {
       try {
@@ -231,18 +242,7 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
                   {eur2(d.amount)}
                 </td>
                 <td className="td-cat">
-                  <select
-                    className="select sel-cell"
-                    aria-label="Categoria"
-                    value={d.category}
-                    onChange={(e) => upd(i, { category: e.target.value })}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                  <CategorySelect value={d.category} onChange={(v) => upd(i, { category: v })} goals={goals} />
                 </td>
                 <td className="td-flag">
                   <select

@@ -20,6 +20,14 @@ export default async function ExpensesPage() {
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
 
+  const { data: g } = await supabase
+    .from("goals")
+    .select("name")
+    .eq("space", space)
+    .eq("done", false)
+    .order("sort", { ascending: true });
+  const goals = (g ?? []).map((r: { name: string }) => r.name);
+
   return (
     <div className="container">
       <TopBar email={user?.email} space={space} />
@@ -27,7 +35,7 @@ export default async function ExpensesPage() {
       <p className="muted" style={{ marginBottom: 18 }}>
         Importa o extrato do banco e ajusta as categorias aqui — a memória vai aprendendo.
       </p>
-      <Expenses key={space} initial={(data as Expense[]) ?? []} space={space} />
+      <Expenses key={space} initial={(data as Expense[]) ?? []} space={space} goals={goals} />
       <BottomNav />
     </div>
   );
