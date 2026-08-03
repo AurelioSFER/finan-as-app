@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import { SAVINGS_CATEGORIES } from "@/lib/categories";
+import { planCapacity, seedFor } from "@/lib/plan";
 import Goals, { type Goal } from "./Goals";
 
 export const dynamic = "force-dynamic";
@@ -69,15 +70,24 @@ export default async function ObjetivosPage() {
   }
   const pace = byMonth.size ? [...byMonth.values()].reduce((a, b) => a + b, 0) / byMonth.size : 0;
 
+  // ---- Orçamento planeado (página Plano): é ele que define quanto há por mês para objetivos
+  const { data: bud } = await supabase.from("budgets").select("key, planned");
+  const prefix = space + ":";
+  const budgets = { ...seedFor(space) };
+  (bud ?? []).forEach((b: { key: string; planned: number }) => {
+    if (b.key.startsWith(prefix)) budgets[b.key.slice(prefix.length)] = Number(b.planned);
+  });
+  const plan = planCapacity(budgets);
+
   return (
     <div className="container">
       <TopBar email={user?.email} space={space} />
       <h1 className="page">Objetivos</h1>
       <p className="muted" style={{ marginBottom: 18 }}>
-        Metas de poupança: quanto falta, até quando e quanto tens de pôr de lado por mês.
+        Metas de poupança calculadas a partir do teu Plano: quanto pões de lado por mês e quando lá chegas.
       </p>
 
-      <Goals initial={goals} space={space} autoFundo={autoFundo} autoInvest={autoInvest} pace={pace} />
+      <Goals initial={goals} space={space} autoFundo={autoFundo} autoInvest={autoInvest} pace={pace} plan={plan} />
 
       <BottomNav />
     </div>

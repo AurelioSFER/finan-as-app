@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import type { Capacity } from "@/lib/plan";
 
 export type Source = "manual" | "fundo" | "investimentos";
 export type Goal = {
@@ -56,6 +58,23 @@ function monthsAhead(n: number): string {
 function dateLabel(iso: string) {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 }
+function plural(n: number) {
+  return n === 1 ? "mês" : "meses";
+}
+
+/** O que o plano reserva por mês para cada objetivo.
+ *  - `prazo`: tem data marcada (ex: um crédito), a mensalidade sai da data.
+ *  - `plano`: sem data, vive do que sobra do plano — daí sai a data prevista.
+ *  - `sem-verba`: o plano não deixa nada para ele.
+ *  - `longe`: a esse ritmo demorava mais de 20 anos; a data não diz nada de útil. */
+type Alloc =
+  | { kind: "atingido" }
+  | { kind: "prazo"; perMonth: number; meses: number; expirado: boolean }
+  | { kind: "plano"; perMonth: number; meses: number; eta: string; espera: number }
+  | { kind: "longe"; perMonth: number }
+  | { kind: "sem-verba" };
+
+const MAX_MESES = 240;
 
 export default function Goals({
   initial,
@@ -63,12 +82,14 @@ export default function Goals({
   autoFundo,
   autoInvest,
   pace,
+  plan,
 }: {
   initial: Goal[];
   space: string;
   autoFundo: number;
   autoInvest: number;
   pace: number;
+  plan: Capacity;
 }) {
   const supabase = createClient();
   const [goals, setGoals] = useState<Goal[]>(initial);
@@ -103,6 +124,53 @@ export default function Goals({
     return { target, saved, pct: target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goals, autoFundo, autoInvest]);
+
+  // ---- Repartição do plano pelos objetivos.
+  // Quem tem data marcada serve-se primeiro: o prazo é um compromisso, a
+  // mensalidade é o que ele obriga. O resto do plano vai para os objetivos sem
+  // data, um de cada vez pela ordem da lista — juntar para dois ao mesmo tempo
+  // só atrasa os dois.
+  const alloc = useMemo(() => {
+    const ativos = goals.filter((g) => !g.done);
+    const map = new Map<string, Alloc>();
+    let comprometido = 0;
+
+    for (const g of ativos) {
+      const falta = Math.max(0, g.target - savedOf(g));
+      if (falta <= 0) {
+        map.set(g.id, { kind: "atingido" });
+        continue;
+      }
+      if (!g.deadline) continue;
+      const meses = monthsUntil(g.deadline);
+      const perMonth = meses > 0 ? falta / meses : falta;
+      comprometido += perMonth;
+      map.set(g.id, { kind: "prazo", perMonth, meses, expirado: meses <= 0 });
+    }
+
+    const livre = Math.max(0, plan.total - comprometido);
+
+    let espera = 0;
+    for (const g of ativos) {
+      if (g.deadline || map.has(g.id)) continue;
+      const falta = Math.max(0, g.target - savedOf(g));
+      if (livre <= 0) {
+        map.set(g.id, { kind: "sem-verba" });
+        continue;
+      }
+      const meses = Math.ceil(falta / livre);
+      if (espera + meses > MAX_MESES) {
+        map.set(g.id, { kind: "longe", perMonth: livre });
+        espera = MAX_MESES + 1; // o que vier a seguir a este está ainda mais longe
+        continue;
+      }
+      map.set(g.id, { kind: "plano", perMonth: livre, meses, eta: monthsAhead(espera + meses), espera });
+      espera += meses;
+    }
+
+    return { map, comprometido, livre, excede: Math.max(0, comprometido - plan.total) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goals, autoFundo, autoInvest, plan]);
 
   function resetForm() {
     setForm({ emoji: "🎯", name: "", target: "", saved: "", deadline: "", source: "manual", note: "" });
@@ -222,6 +290,56 @@ export default function Goals({
         </div>
       )}
 
+      {/* O que o plano dá por mês */}
+      <div className="card" style={{ padding: 18, marginTop: 12 }}>
+        <div style={{ color: "var(--ink-3)", fontSize: 12.5, fontWeight: 600 }}>
+          <span className="sec-ic">📋</span> O teu plano dá, por mês
+        </div>
+        <div className="num" style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-.02em", marginTop: 2 }}>
+          {eur0(plan.total)}
+        </div>
+        <div className="muted" style={{ fontSize: 12.5 }}>
+          Poupança planeada {eur0(plan.poupanca)}
+          {plan.sobra !== 0 && <> · sobra do orçamento {plan.sobra > 0 ? "+" : "−"}{eur0(Math.abs(plan.sobra))}</>}
+        </div>
+
+        <div className="chips" style={{ marginTop: 14 }}>
+          <div className="chip">
+            <div className="k">Preso a prazos</div>
+            <div className="v num">{eur0(alloc.comprometido)}</div>
+          </div>
+          <div className="chip">
+            <div className="k">Livre</div>
+            <div className="v num" style={{ color: alloc.livre > 0 ? "var(--good)" : "var(--ink-2)" }}>
+              {eur0(alloc.livre)}
+            </div>
+          </div>
+          <div className="chip">
+            <div className="k">Ritmo real</div>
+            <div className="v num">{eur0(pace)}</div>
+          </div>
+        </div>
+
+        {plan.total <= 0 ? (
+          <div className="notice" style={{ marginTop: 12 }}>
+            O teu plano não deixa nada para poupar. Vai ao <Link href="/plano"><b>Plano</b></Link> e sobe a Poupança (ou
+            corta nos gastos planeados) para os objetivos ganharem datas.
+          </div>
+        ) : (
+          alloc.excede > 0 && (
+            <div className="error" style={{ marginTop: 12 }}>
+              Os prazos que marcaste pedem {eur0(alloc.comprometido)}/mês e o plano só dá {eur0(plan.total)}. Faltam{" "}
+              <b>{eur0(alloc.excede)}/mês</b> — alarga um prazo ou ajusta o <Link href="/plano"><b>Plano</b></Link>.
+            </div>
+          )
+        )}
+
+        <p className="muted" style={{ fontSize: 12.5, margin: "10px 0 0" }}>
+          Os objetivos com prazo servem-se primeiro. O que sobra vai para os objetivos sem prazo, um de cada vez, pela
+          ordem desta lista.
+        </p>
+      </div>
+
       {/* Lista */}
       <div className="section-title">Os teus objetivos</div>
 
@@ -253,12 +371,11 @@ export default function Goals({
         const saved = savedOf(g);
         const pct = g.target > 0 ? Math.min(100, Math.round((saved / g.target) * 100)) : 0;
         const falta = Math.max(0, g.target - saved);
-        const meses = g.deadline ? monthsUntil(g.deadline) : null;
-        const porMes = meses !== null && meses > 0 ? falta / meses : null;
         const etaMeses = pace > 0 && falta > 0 ? Math.ceil(falta / pace) : null;
         const atingido = falta <= 0;
         const auto = g.source !== "manual";
         const editing = editingId === g.id;
+        const a = alloc.map.get(g.id);
 
         return (
           <div key={g.id} className="card" style={{ padding: 18, marginBottom: 12, opacity: g.done ? 0.55 : 1 }}>
@@ -293,28 +410,55 @@ export default function Goals({
                 <b style={{ color: "var(--good)" }}>Meta atingida! 🎉</b>
               ) : (
                 <>
-                  Faltam <b style={{ color: "var(--ink)" }}>{eur2(falta)}</b>
-                  {g.deadline && (
-                    <>
-                      {" "}· prazo {dateLabel(g.deadline)}
-                      {meses !== null && meses > 0 ? (
-                        <>
-                          {" "}({meses} {meses === 1 ? "mês" : "meses"}) → precisas de{" "}
-                          <b style={{ color: "var(--ink)" }}>{eur0(porMes!)}/mês</b>
-                        </>
+                  <div>
+                    Faltam <b style={{ color: "var(--ink)" }}>{eur2(falta)}</b>
+                  </div>
+
+                  {a?.kind === "prazo" && (
+                    <div>
+                      Prazo {dateLabel(g.deadline!)}
+                      {a.expirado ? (
+                        <> — <span style={{ color: "var(--bad)", fontWeight: 700 }}>prazo esgotado</span>, tens de pôr</>
                       ) : (
-                        <> — prazo esgotado</>
+                        <> ({a.meses} {plural(a.meses)}) → tens de pôr</>
+                      )}{" "}
+                      <b style={{ color: "var(--ink)" }}>{eur0(a.perMonth)}/mês</b> de lado
+                      {alloc.excede > 0 ? (
+                        <span style={{ color: "var(--bad)", fontWeight: 700 }}> ✗ não cabe no plano</span>
+                      ) : (
+                        <span style={{ color: "var(--good)", fontWeight: 700 }}> ✓ cabe no plano</span>
                       )}
-                    </>
+                    </div>
                   )}
+
+                  {a?.kind === "plano" && (
+                    <div>
+                      O plano liberta <b style={{ color: "var(--ink)" }}>{eur0(a.perMonth)}/mês</b> para aqui → meta em{" "}
+                      <b style={{ color: "var(--accent-2)" }}>{a.eta}</b> ({a.meses} {plural(a.meses)} a poupar)
+                      {a.espera > 0 && (
+                        <> — só arranca daqui a {a.espera} {plural(a.espera)}, quando os objetivos acima fecharem</>
+                      )}
+                    </div>
+                  )}
+
+                  {a?.kind === "longe" && (
+                    <div style={{ color: "var(--bad)" }}>
+                      A {eur0(a.perMonth)}/mês isto leva mais de 20 anos. Sobe a Poupança no{" "}
+                      <Link href="/plano"><b>Plano</b></Link> ou baixa o valor-alvo.
+                    </div>
+                  )}
+
+                  {a?.kind === "sem-verba" && (
+                    <div style={{ color: "var(--bad)" }}>
+                      O plano não deixa nada por mês para este objetivo. Dá-lhe um prazo ou sobe a Poupança no{" "}
+                      <Link href="/plano"><b>Plano</b></Link>.
+                    </div>
+                  )}
+
                   {etaMeses !== null && (
                     <div>
-                      Ao ritmo atual ({eur0(pace)}/mês) chegas lá em <b style={{ color: "var(--ink)" }}>{monthsAhead(etaMeses)}</b>
-                      {porMes !== null && (
-                        <span style={{ color: pace >= porMes ? "var(--good)" : "var(--bad)", fontWeight: 700 }}>
-                          {pace >= porMes ? " ✓ dentro do prazo" : " ✗ fora do prazo"}
-                        </span>
-                      )}
+                      Ao ritmo real ({eur0(pace)}/mês) chegavas lá em{" "}
+                      <b style={{ color: "var(--ink)" }}>{monthsAhead(etaMeses)}</b>
                     </div>
                   )}
                 </>
@@ -386,7 +530,7 @@ export default function Goals({
                   />
                 </div>
                 <div className="field span-3">
-                  <label>Prazo</label>
+                  <label>Prazo — vazio = calculado pelo plano</label>
                   <input
                     className="input"
                     type="date"
@@ -449,7 +593,7 @@ export default function Goals({
                 <input className="input" inputMode="decimal" placeholder="0" disabled={form.source !== "manual"} value={form.saved} onChange={(e) => setForm({ ...form, saved: e.target.value })} />
               </div>
               <div className="field span-3">
-                <label>Prazo (opcional)</label>
+                <label>Prazo — vazio = calculado pelo plano</label>
                 <input className="input" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
               </div>
               <div className="field span-3">

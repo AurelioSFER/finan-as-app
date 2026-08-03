@@ -3,11 +3,8 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { typeOf, type Expense } from "@/lib/categories";
+import { seedFor, type Budgets } from "@/lib/plan";
 
-type Budgets = Record<string, number>;
-
-const SEED_PESSOAL: Budgets = { rendimento: 1050, Fixos: 565, Necessários: 200, Supérfluos: 200, Poupança: 85 };
-const SEED_CONJUNTA: Budgets = { rendimento: 600, Fixos: 0, Necessários: 300, Supérfluos: 240, Poupança: 60 };
 const ROWS: { key: string; icon: string; label: string; role: "in" | "out" | "save" }[] = [
   { key: "rendimento", icon: "💵", label: "Rendimento", role: "in" },
   { key: "Fixos", icon: "🔒", label: "Fixos", role: "out" },
@@ -65,7 +62,7 @@ function Bar({
 
 export default function Plano({ rows, budgets, space }: { rows: Expense[]; budgets: Budgets; space: string }) {
   const supabase = createClient();
-  const SEED = space === "conjunta" ? SEED_CONJUNTA : SEED_PESSOAL;
+  const SEED = seedFor(space);
   const spaceRows = useMemo(
     () => rows.filter((r) => (space === "conjunta" ? r.account === "Conjunta" : r.account !== "Conjunta")),
     [rows, space]
