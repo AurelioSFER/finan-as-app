@@ -198,7 +198,9 @@ export default function Goals({
       {/* Resumo */}
       {active.length > 0 && (
         <div className="card" style={{ padding: 22, marginBottom: 4 }}>
-          <div style={{ color: "var(--ink-3)", fontSize: 12.5, fontWeight: 600 }}>🎯 Poupado para objetivos</div>
+          <div style={{ color: "var(--ink-3)", fontSize: 12.5, fontWeight: 600 }}>
+            <span className="sec-ic">🎯</span> Poupado para objetivos
+          </div>
           <div className="num" style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", marginTop: 2 }}>
             {eur2(totals.saved)}
           </div>

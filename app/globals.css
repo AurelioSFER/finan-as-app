@@ -53,6 +53,9 @@ a { color: inherit; text-decoration: none; }
 /* Headings */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); font-weight: 700; margin: 28px 4px 12px; }
+/* Emoji decorativo de título: fica no PC, desaparece no telemóvel (o espaço
+   à frente colapsa sozinho, por isso o texto não fica desalinhado). */
+@media (max-width: 859px) { .sec-ic { display: none; } }
 h1.page { font-size: clamp(24px, 4vw, 30px); font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
 .muted { color: var(--ink-3); font-size: 14px; }
 

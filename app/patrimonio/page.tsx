@@ -47,7 +47,9 @@ export default async function PatrimonioPage() {
       <h1 className="page">Património</h1>
       <p className="muted" style={{ marginBottom: 18 }}>Fundo de emergência e investimentos.</p>
 
-      <div className="section-title" style={{ marginTop: 6 }}>🛟 Fundo de emergência</div>
+      <div className="section-title" style={{ marginTop: 6 }}>
+        <span className="sec-ic">🛟</span> Fundo de emergência
+      </div>
       <EmergencyFund fund={fund} transfers={transfers} initialEntries={entries} />
 
       <Investments initial={investments} />

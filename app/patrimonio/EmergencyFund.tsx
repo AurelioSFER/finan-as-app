@@ -130,7 +130,9 @@ export default function EmergencyFund({
     <>
       {/* Total + progresso */}
       <div className="card" style={{ padding: 22 }}>
-        <div style={{ color: "var(--ink-3)", fontSize: 12.5, fontWeight: 600 }}>🛟 Total do fundo</div>
+        <div style={{ color: "var(--ink-3)", fontSize: 12.5, fontWeight: 600 }}>
+          <span className="sec-ic">🛟</span> Total do fundo
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 2 }}>
           <div className="num" style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", color: "var(--warn)" }}>

@@ -104,7 +104,7 @@ export default function Holdings({ initial }: { initial: Holding[] }) {
       </div>
 
       {/* Fundo de emergência */}
-      <div className="section-title">🛟 Fundo de emergência</div>
+      <div className="section-title"><span className="sec-ic">🛟</span> Fundo de emergência</div>
       <div className="card" style={{ padding: 18 }}>
         {fundoGoal > 0 && (
           <>
@@ -129,7 +129,7 @@ export default function Holdings({ initial }: { initial: Holding[] }) {
       </div>
 
       {/* Investimentos */}
-      <div className="section-title">📈 Investimentos</div>
+      <div className="section-title"><span className="sec-ic">📈</span> Investimentos</div>
       <div className="card" style={{ padding: 18 }}>
         {invest.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>Adiciona as tuas posições abaixo (ex: XTB — S&amp;P500).</p>

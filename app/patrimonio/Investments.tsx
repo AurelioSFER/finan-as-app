@@ -131,7 +131,7 @@ export default function Investments({ initial }: { initial: Position[] }) {
   return (
     <>
       <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        📈 Investimentos
+        <span><span className="sec-ic">📈</span> Investimentos</span>
         <button className="btn btn-ghost" style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => loadQuotes(rows)} disabled={loading}>
           {loading ? "…" : "↻ atualizar preços"}
         </button>

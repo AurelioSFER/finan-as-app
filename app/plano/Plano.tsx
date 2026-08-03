@@ -8,12 +8,12 @@ type Budgets = Record<string, number>;
 
 const SEED_PESSOAL: Budgets = { rendimento: 1050, Fixos: 565, Necessários: 200, Supérfluos: 200, Poupança: 85 };
 const SEED_CONJUNTA: Budgets = { rendimento: 600, Fixos: 0, Necessários: 300, Supérfluos: 240, Poupança: 60 };
-const ROWS: { key: string; label: string; role: "in" | "out" | "save" }[] = [
-  { key: "rendimento", label: "💵 Rendimento", role: "in" },
-  { key: "Fixos", label: "🔒 Fixos", role: "out" },
-  { key: "Necessários", label: "🍞 Necessários", role: "out" },
-  { key: "Supérfluos", label: "🎈 Supérfluos", role: "out" },
-  { key: "Poupança", label: "💰 Poupar / Investir", role: "save" },
+const ROWS: { key: string; icon: string; label: string; role: "in" | "out" | "save" }[] = [
+  { key: "rendimento", icon: "💵", label: "Rendimento", role: "in" },
+  { key: "Fixos", icon: "🔒", label: "Fixos", role: "out" },
+  { key: "Necessários", icon: "🍞", label: "Necessários", role: "out" },
+  { key: "Supérfluos", icon: "🎈", label: "Supérfluos", role: "out" },
+  { key: "Poupança", icon: "💰", label: "Poupar / Investir", role: "save" },
 ];
 
 function eur(n: number) {
@@ -32,11 +32,25 @@ function parseNum(s: string) {
   return parseFloat(s.replace(/\s/g, "").replace(",", ".")) || 0;
 }
 
-function Bar({ pct, target, label, color }: { pct: number; target: number; label: string; color: string }) {
+function Bar({
+  pct,
+  target,
+  icon,
+  label,
+  color,
+}: {
+  pct: number;
+  target: number;
+  icon: string;
+  label: string;
+  color: string;
+}) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
-        <span style={{ fontWeight: 600 }}>{label}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, marginBottom: 5 }}>
+        <span style={{ fontWeight: 600 }}>
+          <span className="sec-ic">{icon}</span> {label}
+        </span>
         <span className="num" style={{ fontWeight: 700, color }}>
           {pct}% <span className="muted" style={{ fontWeight: 400 }}>/ meta {target}%</span>
         </span>
@@ -123,7 +137,9 @@ export default function Plano({ rows, budgets, space }: { rows: Expense[]; budge
               const good = r.role === "out" ? delta <= 0 : delta >= 0;
               return (
                 <tr key={r.key}>
-                  <td className="td-name" style={{ fontWeight: 600 }}>{r.label}</td>
+                  <td className="td-name" style={{ fontWeight: 600 }}>
+                    <span className="sec-ic">{r.icon}</span> {r.label}
+                  </td>
                   <td className="n td-plan" data-label="Planeado">
                     <input
                       className="input input-cell"
@@ -161,9 +177,9 @@ export default function Plano({ rows, budgets, space }: { rows: Expense[]; budge
       {/* 50 / 30 / 20 */}
       <div className="section-title">Equilíbrio · regra 50/30/20 · {monthLabel(month)}</div>
       <div className="card" style={{ padding: 18 }}>
-        <Bar label="🧱 Precisas (Fixos + Necessários)" pct={pct(needs)} target={50} color="var(--accent-2)" />
-        <Bar label="🎈 Queres (Supérfluos)" pct={pct(wants)} target={30} color="#ff6b9d" />
-        <Bar label="💰 Poupança / Investir" pct={pct(save)} target={20} color="var(--good)" />
+        <Bar icon="🧱" label="Precisas (Fixos + Necessários)" pct={pct(needs)} target={50} color="var(--accent-2)" />
+        <Bar icon="🎈" label="Queres (Supérfluos)" pct={pct(wants)} target={30} color="#ff6b9d" />
+        <Bar icon="💰" label="Poupança / Investir" pct={pct(save)} target={20} color="var(--good)" />
         <p className="muted" style={{ fontSize: 12.5, margin: "8px 0 0" }}>
           Base de cálculo: rendimento de {eur(rend)}. A linha cinzenta marca a meta. Ajusta o Planeado à tua realidade
           quando receberes o salário do mês.
