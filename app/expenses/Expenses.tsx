@@ -68,8 +68,8 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
       {error && <div className="error" style={{ marginBottom: 12 }}>{error}</div>}
 
       {/* Filtros */}
-      <div className="toolbar">
-        <select className="select" style={{ width: "auto" }} value={fMonth} onChange={(e) => setFMonth(e.target.value)}>
+      <div className="filters">
+        <select className="select f-month" aria-label="Mês" value={fMonth} onChange={(e) => setFMonth(e.target.value)}>
           <option value="all">Todos os meses</option>
           {months.map((m) => (
             <option key={m} value={m}>
@@ -77,7 +77,7 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
             </option>
           ))}
         </select>
-        <select className="select" style={{ width: "auto" }} value={fCat} onChange={(e) => setFCat(e.target.value)}>
+        <select className="select f-cat" aria-label="Categoria" value={fCat} onChange={(e) => setFCat(e.target.value)}>
           <option value="all">Todas as categorias</option>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
@@ -85,11 +85,11 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
             </option>
           ))}
         </select>
-        <input className="input" style={{ width: "auto", flex: 1, minWidth: 140 }} placeholder="Procurar…" value={fText} onChange={(e) => setFText(e.target.value)} />
+        <input className="input f-search" placeholder="Procurar…" aria-label="Procurar" value={fText} onChange={(e) => setFText(e.target.value)} />
       </div>
 
-      {/* Lista */}
-      <div className="card tbl-wrap">
+      {/* Lista — tabela no PC, cartões no telemóvel */}
+      <div className="card tbl-wrap tbl-cards cards-mov">
         <table>
           <thead>
             <tr>
@@ -103,23 +103,23 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted" style={{ textAlign: "center", padding: 28 }}>
+                <td colSpan={5} className="muted td-empty" style={{ textAlign: "center", padding: 28 }}>
                   Sem movimentos. Importa o extrato do banco. 👆
                 </td>
               </tr>
             )}
             {filtered.map((r) => (
               <tr key={r.id}>
-                <td className="num">{r.date.slice(8, 10)}/{r.date.slice(5, 7)}</td>
-                <td style={{ whiteSpace: "normal", maxWidth: 160 }}>
+                <td className="num td-date">{r.date.slice(8, 10)}/{r.date.slice(5, 7)}</td>
+                <td className="td-desc">
                   {r.description}
                   {r.flag === "R" && <span className="badge R" style={{ marginLeft: 6 }}>R</span>}
                   {r.flag === "P" && <span className="badge P" style={{ marginLeft: 6 }}>P</span>}
                 </td>
-                <td>
+                <td className="td-cat">
                   <select
-                    className="select"
-                    style={{ width: "auto", minWidth: 130, padding: "7px 10px" }}
+                    className="select sel-cell"
+                    aria-label="Categoria"
                     value={r.category}
                     onChange={(e) => changeCategory(r, e.target.value)}
                   >
@@ -130,12 +130,12 @@ export default function Expenses({ initial, space }: { initial: Expense[]; space
                     ))}
                   </select>
                 </td>
-                <td className={"n " + (r.kind === "entrada" ? "amount-in" : "amount-out")}>
+                <td className={"n td-amt " + (r.kind === "entrada" ? "amount-in" : "amount-out")}>
                   {r.kind === "entrada" ? "+" : "−"}
                   {eur2(r.amount)}
                 </td>
-                <td className="n">
-                  <button className="btn btn-ghost" title="Apagar" onClick={() => remove(r.id)}>
+                <td className="n td-del">
+                  <button className="btn btn-ghost" title="Apagar" aria-label="Apagar movimento" onClick={() => remove(r.id)}>
                     ✕
                   </button>
                 </td>

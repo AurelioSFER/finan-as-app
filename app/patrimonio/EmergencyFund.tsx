@@ -141,8 +141,8 @@ export default function EmergencyFund({
             title="Adicionar juros ou depósito"
             aria-label="Adicionar juros ou depósito"
             style={{
-              width: 34, height: 34, borderRadius: "50%", border: "none", cursor: "pointer",
-              background: "var(--accent-soft)", color: "var(--accent-2)", fontSize: 22, fontWeight: 700, lineHeight: 1,
+              width: 40, height: 40, flexShrink: 0, borderRadius: "50%", border: "none", cursor: "pointer",
+              background: "var(--accent-soft)", color: "var(--accent-2)", fontSize: 24, fontWeight: 700, lineHeight: 1,
             }}
           >
             +

@@ -87,7 +87,7 @@ export default function Holdings({ initial }: { initial: Holding[] }) {
   return (
     <>
       {/* Resumo */}
-      <div className="tiles" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div className="tiles">
         <div className="tile">
           <div className="label">Património total</div>
           <div className="big num">{eur(total)}</div>

@@ -272,7 +272,7 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
   return (
     <>
       <div className="toolbar">
-        <select className="select" style={{ width: "auto" }} value={month} onChange={(e) => setMonth(e.target.value)}>
+        <select className="select sel-month" aria-label="Mês" value={month} onChange={(e) => setMonth(e.target.value)}>
           <option value="all">Sempre</option>
           {months.map((m) => (
             <option key={m} value={m}>

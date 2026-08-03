@@ -32,7 +32,8 @@ body {
 a { color: inherit; text-decoration: none; }
 .num { font-variant-numeric: tabular-nums; }
 
-.container { width: 100%; max-width: 480px; margin: 0 auto; padding: 0 16px 110px; position: relative; }
+/* O padding-bottom tem de dar para a BottomNav (~58px) + a barra do sistema no iPhone. */
+.container { width: 100%; max-width: 480px; margin: 0 auto; padding: 0 16px calc(104px + env(safe-area-inset-bottom)); position: relative; }
 @media (min-width: 860px) {
   .container { max-width: 960px; padding: 0 24px 48px; }
 }
@@ -57,12 +58,20 @@ h1.page { font-size: clamp(24px, 4vw, 30px); font-weight: 800; letter-spacing: -
 
 /* Tiles / chips */
 .tiles, .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.tile, .chip { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 15px; box-shadow: var(--shadow); }
+.tile, .chip { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 15px; box-shadow: var(--shadow); min-width: 0; }
 .tile .label, .chip .k { font-size: 12px; color: var(--ink-3); font-weight: 600; }
-.tile .big { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 2px; }
+/* clamp: em ecrãs estreitos o número encolhe em vez de rebentar a caixa */
+.tile .big { font-size: clamp(17px, 5vw, 22px); font-weight: 800; letter-spacing: -.02em; margin-top: 2px; }
 .tile .sub { font-size: 12px; color: var(--ink-2); }
 .chip { text-align: center; }
-.chip .v { font-size: 18px; font-weight: 800; letter-spacing: -.01em; margin-top: 3px; }
+.chip .v { font-size: clamp(14px, 4.2vw, 18px); font-weight: 800; letter-spacing: -.01em; margin-top: 3px; }
+@media (max-width: 520px) {
+  .tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* três tiles em duas colunas: o último ocupa a linha toda em vez de deixar buraco */
+  .tiles > :nth-child(3):nth-last-child(1) { grid-column: 1 / -1; }
+  .chips { gap: 10px; }
+  .tile, .chip { padding: 14px 12px; }
+}
 
 /* Hero donut */
 .hero { display: flex; flex-direction: column; align-items: center; padding: 24px 16px 10px; }
@@ -75,7 +84,7 @@ h1.page { font-size: clamp(24px, 4vw, 30px); font-weight: 800; letter-spacing: -
 .cat-list { padding: 6px; }
 .cat-row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 13px; }
 .cat-row + .cat-row { border-top: 1px solid var(--line); }
-.cat-row .name { flex: 1; font-size: 14.5px; font-weight: 600; }
+.cat-row .name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600; }
 .cat-row .pct { font-size: 12.5px; color: var(--ink-3); font-weight: 700; min-width: 38px; text-align: right; }
 .cat-row .amt { font-size: 14.5px; font-weight: 800; letter-spacing: -.01em; min-width: 68px; text-align: right; }
 .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
@@ -115,6 +124,15 @@ h1.page { font-size: clamp(24px, 4vw, 30px); font-weight: 800; letter-spacing: -
 .btn-ghost { border-color: transparent; background: transparent; color: var(--ink-3); }
 .btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
 
+/* Telemóvel: nada com menos de 44px de alvo e nenhum campo com <16px
+   (abaixo de 16px o Safari do iPhone dá zoom sozinho ao focar). */
+@media (max-width: 859px) {
+  .input, .select { font-size: 16px; min-height: 44px; }
+  textarea.input { font-size: 15px; }
+  .btn { min-height: 44px; min-width: 44px; }
+  .section-title .btn { min-height: 0; min-width: 0; }
+}
+
 /* Table */
 .tbl-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
@@ -122,7 +140,68 @@ th, td { text-align: left; padding: 12px 14px; font-size: 14px; border-bottom: 1
 th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 700; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: var(--surface-2); }
+/* só com rato: no telemóvel o :hover fica "colado" depois do toque */
+@media (hover: hover) { tbody tr:hover { background: var(--surface-2); } }
+
+/* Células com controlos dentro (largura fixa no PC, largura total no telemóvel) */
+.sel-cell { width: auto; min-width: 130px; padding: 7px 10px; }
+.sel-flag { width: auto; padding: 7px 10px; }
+.input-cell { width: 92px; text-align: right; padding: 7px 9px; }
+.td-desc { white-space: normal; max-width: 170px; }
+
+/* ---- Telemóvel: cada linha da tabela vira um cartão ---- */
+@media (max-width: 859px) {
+  .tbl-cards { overflow-x: visible; }
+  .tbl-cards thead { display: none; }
+  .tbl-cards table, .tbl-cards tbody, .tbl-cards tr, .tbl-cards td { display: block; width: 100%; }
+  .tbl-cards tr { padding: 14px; border-bottom: 1px solid var(--line); }
+  .tbl-cards tr:last-child { border-bottom: none; }
+  .tbl-cards td { border: none; padding: 0; white-space: normal; font-size: 14.5px; max-width: none; min-width: 0; }
+  .tbl-cards .td-desc { overflow-wrap: anywhere; }
+  .tbl-cards td[data-label]::before {
+    content: attr(data-label);
+    display: block; margin-bottom: 5px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .tbl-cards .sel-cell, .tbl-cards .sel-flag, .tbl-cards .input-cell {
+    width: 100%; min-width: 0; padding: 10px 12px; text-align: left;
+  }
+  .tbl-cards input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+  .tbl-cards .btn { padding: 10px 14px; }
+
+  /* Gastos e Importar — cartão de movimento */
+  .cards-mov tr, .cards-draft tr { display: grid; align-items: center; gap: 9px 10px; }
+  .cards-mov tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .cards-mov .td-desc { grid-column: 1; grid-row: 1; font-weight: 600; line-height: 1.35; }
+  .cards-mov .td-amt { grid-column: 2; grid-row: 1; font-size: 15.5px; }
+  .cards-mov .td-date { grid-column: 1; grid-row: 2; font-size: 12.5px; color: var(--ink-3); }
+  .cards-mov .td-del { grid-column: 2; grid-row: 2; }
+  /* a categoria leva a linha toda: o nome mais comprido ainda cabe a 320px */
+  .cards-mov .td-cat { grid-column: 1 / -1; grid-row: 3; }
+  .cards-mov .td-empty { grid-column: 1 / -1; text-align: center; }
+
+  .cards-draft tr { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .cards-draft .td-chk { grid-column: 1; grid-row: 1; }
+  .cards-draft .td-desc { grid-column: 2; grid-row: 1; font-weight: 600; line-height: 1.35; }
+  .cards-draft .td-amt { grid-column: 3; grid-row: 1; font-size: 15.5px; }
+  .cards-draft .td-date { grid-column: 2 / -1; grid-row: 2; font-size: 12.5px; color: var(--ink-3); }
+  .cards-draft .td-cat { grid-column: 2 / -1; grid-row: 3; }
+  /* o flag leva linha própria: assim a coluna da direita é só o valor
+     e a descrição fica com espaço para respirar */
+  .cards-draft .td-flag { grid-column: 2 / -1; grid-row: 4; }
+
+  /* Plano — cartão por rubrica */
+  .cards-plan tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; align-items: end; }
+  .cards-plan td, .cards-plan td.n { text-align: left; }
+  .cards-plan .td-name { grid-column: 1 / -1; font-size: 15px; }
+  .cards-plan .td-plan { grid-column: 1; }
+  .cards-plan .td-real { grid-column: 2; }
+  .cards-plan .td-delta { grid-column: 3; }
+  .cards-plan tr.row-total { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .cards-plan tr.row-total .td-name { grid-column: 1; }
+  .cards-plan tr.row-total .td-plan { grid-column: 2; text-align: right; }
+  .cards-plan .td-void { display: none; }
+}
 
 /* Badges */
 .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
@@ -146,6 +225,30 @@ tbody tr:hover { background: var(--surface-2); }
 
 .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .spacer { flex: 1; }
+/* No telemóvel o spacer empurrava os controlos para linhas soltas; a seguir eles só embrulham. */
+@media (max-width: 859px) { .toolbar > .spacer { display: none; } }
+
+/* Seletor de mês: compacto no PC, largura total (fácil de tocar) no telemóvel */
+.sel-month { width: auto; }
+@media (max-width: 859px) { .sel-month { width: 100%; } }
+
+/* Barra de filtros: no telemóvel mês+procurar lado a lado e a categoria
+   por baixo (é a etiqueta mais comprida, precisa da largura toda).
+   No PC volta a ser uma linha flexível, na ordem natural do HTML. */
+.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.filters .f-month { grid-column: 1; grid-row: 1; }
+.filters .f-search { grid-column: 2; grid-row: 1; }
+.filters .f-cat { grid-column: 1 / -1; grid-row: 2; }
+/* Ecrãs muito estreitos (≤359px): cada filtro na sua linha, sem cortar texto. */
+@media (max-width: 359px) {
+  .filters { grid-template-columns: 1fr; }
+  .filters .f-month, .filters .f-search, .filters .f-cat { grid-column: 1; grid-row: auto; }
+}
+@media (min-width: 860px) {
+  .filters { display: flex; flex-wrap: wrap; align-items: center; }
+  .filters .select { width: auto; }
+  .filters .f-search { flex: 1; min-width: 200px; }
+}
 .notice { padding: 13px 15px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); font-size: 14px; }
 .error { padding: 13px 15px; border-radius: 12px; background: var(--bad-soft); color: #ffb3c0; font-size: 14px; }
 
@@ -180,6 +283,10 @@ tbody tr:hover { background: var(--surface-2); }
 .space-switch { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
 .space-switch button { border: none; background: transparent; color: var(--ink-2); font-weight: 700; font-size: 13px; padding: 8px 15px; border-radius: 999px; cursor: pointer; font-family: inherit; transition: background .12s ease, color .12s ease; }
 .space-switch button.active { background: var(--accent); color: #fff; }
+@media (max-width: 859px) {
+  .space-switch { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .space-switch button { padding: 11px 12px; font-size: 13.5px; }
+}
 
 .bottomnav .fab {
   width: 50px; height: 50px; border-radius: 50%; margin-top: -26px;

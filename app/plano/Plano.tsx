@@ -92,7 +92,7 @@ export default function Plano({ rows, budgets, space }: { rows: Expense[]; budge
   return (
     <>
       <div className="toolbar">
-        <select className="select" style={{ width: "auto" }} value={month} onChange={(e) => setMonth(e.target.value)}>
+        <select className="select sel-month" aria-label="Mês" value={month} onChange={(e) => setMonth(e.target.value)}>
           <option value="all">Média por mês</option>
           {months.map((m) => (
             <option key={m} value={m}>
@@ -103,8 +103,8 @@ export default function Plano({ rows, budgets, space }: { rows: Expense[]; budge
         <div className="spacer" />
       </div>
 
-      {/* Tabela Planeado vs Real */}
-      <div className="card tbl-wrap">
+      {/* Planeado vs Real — tabela no PC, cartões no telemóvel */}
+      <div className="card tbl-wrap tbl-cards cards-plan">
         <table>
           <thead>
             <tr>
@@ -123,32 +123,36 @@ export default function Plano({ rows, budgets, space }: { rows: Expense[]; budge
               const good = r.role === "out" ? delta <= 0 : delta >= 0;
               return (
                 <tr key={r.key}>
-                  <td style={{ fontWeight: 600 }}>{r.label}</td>
-                  <td className="n">
+                  <td className="td-name" style={{ fontWeight: 600 }}>{r.label}</td>
+                  <td className="n td-plan" data-label="Planeado">
                     <input
-                      className="input"
-                      style={{ width: 92, textAlign: "right", padding: "7px 9px" }}
+                      className="input input-cell"
+                      aria-label={`Planeado — ${r.label}`}
                       inputMode="decimal"
                       value={String(plan)}
                       onChange={(e) => onPlanned(r.key, e.target.value)}
                       onBlur={() => savePlanned(r.key)}
                     />
                   </td>
-                  <td className="n num" style={{ fontWeight: 700 }}>{eur(real)}</td>
-                  <td className="n num" style={{ fontWeight: 700, color: good ? "var(--good)" : "var(--bad)" }}>
+                  <td className="n num td-real" data-label="Real" style={{ fontWeight: 700 }}>{eur(real)}</td>
+                  <td
+                    className="n num td-delta"
+                    data-label="Δ"
+                    style={{ fontWeight: 700, color: good ? "var(--good)" : "var(--bad)" }}
+                  >
                     {delta >= 0 ? "+" : "−"}
                     {eur(Math.abs(delta))}
                   </td>
                 </tr>
               );
             })}
-            <tr style={{ background: "var(--surface-2)" }}>
-              <td style={{ fontWeight: 800 }}>= Sobra planeada</td>
-              <td className="n num" style={{ fontWeight: 800, color: plannedSobra >= 0 ? "var(--good)" : "var(--bad)" }}>
+            <tr className="row-total" style={{ background: "var(--surface-2)" }}>
+              <td className="td-name" style={{ fontWeight: 800 }}>= Sobra planeada</td>
+              <td className="n num td-plan" style={{ fontWeight: 800, color: plannedSobra >= 0 ? "var(--good)" : "var(--bad)" }}>
                 {plannedSobra >= 0 ? "+" : "−"}
                 {eur(Math.abs(plannedSobra))}
               </td>
-              <td colSpan={2}></td>
+              <td className="td-void" colSpan={2}></td>
             </tr>
           </tbody>
         </table>

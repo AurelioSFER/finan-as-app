@@ -177,7 +177,7 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
           </span>
           <div className="spacer" />
           <label className="muted" style={{ margin: 0 }}>Conta:</label>
-          <select className="select" style={{ width: "auto" }} value={account} onChange={(e) => setAccount(e.target.value)}>
+          <select className="select sel-cell" aria-label="Conta" value={account} onChange={(e) => setAccount(e.target.value)}>
             {ACCOUNTS.map((a) => (
               <option key={a} value={a}>
                 {a}
@@ -196,7 +196,7 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
         {error && <div className="error" style={{ marginTop: 10 }}>{error}</div>}
       </div>
 
-      <div className="card tbl-wrap" style={{ marginBottom: 14 }}>
+      <div className="card tbl-wrap tbl-cards cards-draft" style={{ marginBottom: 14 }}>
         <table>
           <thead>
             <tr>
@@ -211,19 +211,24 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
           <tbody>
             {drafts.map((d, i) => (
               <tr key={i} style={{ opacity: d.include ? 1 : 0.4 }}>
-                <td>
-                  <input type="checkbox" checked={d.include} onChange={(e) => upd(i, { include: e.target.checked })} />
+                <td className="td-chk">
+                  <input
+                    type="checkbox"
+                    aria-label="Incluir este movimento"
+                    checked={d.include}
+                    onChange={(e) => upd(i, { include: e.target.checked })}
+                  />
                 </td>
-                <td className="num">{d.date.slice(8, 10)}/{d.date.slice(5, 7)}</td>
-                <td style={{ whiteSpace: "normal", maxWidth: 180 }}>{d.description}</td>
-                <td className={"n " + (d.kind === "entrada" ? "amount-in" : "amount-out")}>
+                <td className="num td-date">{d.date.slice(8, 10)}/{d.date.slice(5, 7)}</td>
+                <td className="td-desc">{d.description}</td>
+                <td className={"n td-amt " + (d.kind === "entrada" ? "amount-in" : "amount-out")}>
                   {d.kind === "entrada" ? "+" : "−"}
                   {eur2(d.amount)}
                 </td>
-                <td>
+                <td className="td-cat">
                   <select
-                    className="select"
-                    style={{ width: "auto", minWidth: 130, padding: "7px 10px" }}
+                    className="select sel-cell"
+                    aria-label="Categoria"
                     value={d.category}
                     onChange={(e) => upd(i, { category: e.target.value })}
                   >
@@ -234,10 +239,10 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
                     ))}
                   </select>
                 </td>
-                <td>
+                <td className="td-flag">
                   <select
-                    className="select"
-                    style={{ width: "auto", padding: "7px 10px" }}
+                    className="select sel-flag"
+                    aria-label="Marca (reembolsado / prenda)"
                     value={d.flag}
                     onChange={(e) => upd(i, { flag: e.target.value })}
                   >
