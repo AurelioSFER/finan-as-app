@@ -20,11 +20,14 @@ export default async function ExpensesPage() {
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
 
+  // Só os objetivos manuais. Os automáticos (fundo, investimentos) já recebem
+  // dinheiro pelas suas próprias categorias — apareceriam aqui em duplicado.
   const { data: g } = await supabase
     .from("goals")
     .select("name")
     .eq("space", space)
     .eq("done", false)
+    .eq("source", "manual")
     .order("sort", { ascending: true });
   const goals = (g ?? []).map((r: { name: string }) => r.name);
 

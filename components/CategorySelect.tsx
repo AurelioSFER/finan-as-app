@@ -22,8 +22,9 @@ export default function CategorySelect({
   /** Acrescenta a opção "todas" — para a barra de filtros. */
   includeAll?: boolean;
 }) {
-  // Um movimento antigo pode apontar para um objetivo já apagado. Sem isto o
-  // select mostrava outra categoria qualquer e a próxima gravação perdia-a.
+  // Um movimento pode apontar para um objetivo que já não está na lista (foi
+  // apagado, fechado, ou passou a automático). Sem isto o select mostrava
+  // outra categoria qualquer e a próxima gravação perdia a atribuição.
   const orfa =
     value && !includeAll && !CATEGORIES.includes(value as never) && !goals.includes(goalNameOf(value) ?? "")
       ? value
@@ -49,7 +50,7 @@ export default function CategorySelect({
         </optgroup>
       )}
       {orfa && (
-        <optgroup label="Já não existe">
+        <optgroup label="Atribuição antiga">
           <option value={orfa}>{isGoalCategory(orfa) ? `🎯 ${goalNameOf(orfa)}` : orfa}</option>
         </optgroup>
       )}
