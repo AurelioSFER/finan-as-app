@@ -72,7 +72,7 @@ type Alloc =
   | { kind: "prazo"; perMonth: number; meses: number; expirado: boolean }
   | { kind: "plano"; perMonth: number; meses: number; eta: string; espera: number }
   | { kind: "longe"; perMonth: number }
-  | { kind: "sem-verba" };
+  | { kind: "sem-verba"; motivo: "prazos" | "plano" };
 
 const MAX_MESES = 240;
 
@@ -155,7 +155,7 @@ export default function Goals({
       if (g.deadline || map.has(g.id)) continue;
       const falta = Math.max(0, g.target - savedOf(g));
       if (livre <= 0) {
-        map.set(g.id, { kind: "sem-verba" });
+        map.set(g.id, { kind: "sem-verba", motivo: comprometido > 0 ? "prazos" : "plano" });
         continue;
       }
       const meses = Math.ceil(falta / livre);
@@ -450,8 +450,17 @@ export default function Goals({
 
                   {a?.kind === "sem-verba" && (
                     <div style={{ color: "var(--bad)" }}>
-                      O plano não deixa nada por mês para este objetivo. Dá-lhe um prazo ou sobe a Poupança no{" "}
-                      <Link href="/plano"><b>Plano</b></Link>.
+                      {a.motivo === "prazos" ? (
+                        <>
+                          Fica à espera: os objetivos com prazo já levam {eur0(alloc.comprometido)}/mês, todo o teu
+                          plano. Só arranca quando algum deles fechar.
+                        </>
+                      ) : (
+                        <>
+                          O plano não deixa nada por mês para poupar. Sobe a Poupança no{" "}
+                          <Link href="/plano"><b>Plano</b></Link>.
+                        </>
+                      )}
                     </div>
                   )}
 

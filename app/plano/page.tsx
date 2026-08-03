@@ -16,21 +16,24 @@ export default async function PlanoPage() {
 
   const { data: exp } = await supabase.from("expenses").select("*").order("date", { ascending: false });
   const { data: bud } = await supabase.from("budgets").select("key, planned");
+  const budgetRows = (bud ?? []).map((b: { key: string; planned: number }) => ({
+    key: b.key,
+    planned: Number(b.planned),
+  }));
 
-  const prefix = space + ":";
-  const budgets: Record<string, number> = {};
-  (bud ?? []).forEach((b: { key: string; planned: number }) => {
-    if (b.key.startsWith(prefix)) budgets[b.key.slice(prefix.length)] = Number(b.planned);
-  });
+  // o mês corrente vem daqui para o servidor e o cliente renderizarem o mesmo
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   return (
     <div className="container">
       <TopBar email={user?.email} space={space} />
       <h1 className="page">Plano</h1>
       <p className="muted" style={{ marginBottom: 18 }}>
-        Define o teu orçamento (Planeado) e a app mostra-te o <b>Real</b> dos teus dados, lado a lado.
+        Um plano por mês. Carrega em <b>Sugerir plano</b> e eu analiso os meses anteriores, pergunto-te o que muda
+        neste, e proponho os números.
       </p>
-      <Plano key={space} rows={(exp as Expense[]) ?? []} budgets={budgets} space={space} />
+      <Plano key={space} rows={(exp as Expense[]) ?? []} budgetRows={budgetRows} space={space} today={today} />
       <BottomNav />
     </div>
   );

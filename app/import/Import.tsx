@@ -115,9 +115,14 @@ export default function Import({ rules, defaultAccount }: { rules: Record<string
     return (
       <div className="card" style={{ padding: 28, textAlign: "center" }}>
         <p style={{ fontSize: 18, fontWeight: 800, margin: "0 0 6px" }}>✅ {savedCount} movimentos guardados!</p>
-        <p className="muted" style={{ margin: "0 0 18px" }}>A memória aprendeu as categorias que confirmaste.</p>
+        <p className="muted" style={{ margin: "0 0 18px" }}>
+          A memória aprendeu as categorias que confirmaste. Agora podes montar o plano deste mês com estes números.
+        </p>
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-          <Link className="btn btn-primary" href="/dashboard">
+          <Link className="btn btn-primary" href="/plano">
+            ✨ Fazer o plano do mês
+          </Link>
+          <Link className="btn" href="/dashboard">
             Ver dashboard
           </Link>
           <button className="btn" onClick={() => setSavedCount(null)}>

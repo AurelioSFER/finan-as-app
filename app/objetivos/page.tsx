@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import { SAVINGS_CATEGORIES } from "@/lib/categories";
-import { planCapacity, seedFor } from "@/lib/plan";
+import { parseBudgetRows, planCapacity, planForMonth } from "@/lib/plan";
 import Goals, { type Goal } from "./Goals";
 
 export const dynamic = "force-dynamic";
@@ -70,14 +70,16 @@ export default async function ObjetivosPage() {
   }
   const pace = byMonth.size ? [...byMonth.values()].reduce((a, b) => a + b, 0) / byMonth.size : 0;
 
-  // ---- Orçamento planeado (página Plano): é ele que define quanto há por mês para objetivos
+  // ---- Orçamento planeado (página Plano): é ele que define quanto há por mês para objetivos.
+  // Usa o plano em vigor no mês corrente.
   const { data: bud } = await supabase.from("budgets").select("key, planned");
-  const prefix = space + ":";
-  const budgets = { ...seedFor(space) };
-  (bud ?? []).forEach((b: { key: string; planned: number }) => {
-    if (b.key.startsWith(prefix)) budgets[b.key.slice(prefix.length)] = Number(b.planned);
-  });
-  const plan = planCapacity(budgets);
+  const now = new Date();
+  const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const parsed = parseBudgetRows(
+    (bud ?? []).map((b: { key: string; planned: number }) => ({ key: b.key, planned: Number(b.planned) })),
+    space
+  );
+  const plan = planCapacity(planForMonth(space, mesAtual, parsed));
 
   return (
     <div className="container">
