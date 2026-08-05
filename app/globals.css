@@ -152,6 +152,45 @@ tr:last-child td { border-bottom: none; }
 .input-cell { width: 92px; text-align: right; padding: 7px 9px; }
 .td-desc { white-space: normal; max-width: 170px; }
 
+/* ---- Plano: abrir uma rubrica e ver as categorias por trás ---- */
+.det-toggle {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-weight: 600; color: inherit; text-align: left;
+}
+.det-chev { color: var(--ink-3); font-size: 17px; line-height: 1; transition: transform .15s ease; }
+.det-chev.is-open { transform: rotate(90deg); color: var(--accent-2); }
+.row-open td { background: var(--surface-2); }
+.row-detail td { background: var(--surface-2); padding: 4px 16px 16px; white-space: normal; }
+@media (hover: hover) { tbody tr.row-detail:hover { background: none; } }
+
+.det { --det-cols: minmax(0, 1fr) 92px; }
+.det-hist { --det-cols: minmax(0, 1fr) 92px 92px; }
+.det-head, .det-row {
+  display: grid; grid-template-columns: var(--det-cols); gap: 10px; align-items: center;
+}
+/* .n só está definido para células de tabela; aqui são spans dentro de um grid */
+.det-head .n, .det-row .n { text-align: right; font-variant-numeric: tabular-nums; }
+.det-head {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); padding: 2px 0 6px; border-bottom: 1px solid var(--line);
+}
+.det-row { position: relative; padding: 9px 0; }
+.det-row + .det-row { border-top: 1px solid var(--line); }
+.det-name { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; font-weight: 600; }
+.det-ic { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-size: 14px; flex-shrink: 0; }
+.det-txt { min-width: 0; overflow-wrap: anywhere; }
+.det-txt small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-3); }
+.det-hab { color: var(--ink-2); font-weight: 600; }
+.det-real { font-weight: 800; }
+.det-bar { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 2px; opacity: .55; }
+.det-sum { border-top: 1px solid var(--line); font-weight: 800; }
+.det-sum .det-name { font-size: 13px; }
+.det-extras { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.det-extras-h { font-size: 11.5px; font-weight: 700; color: var(--ink-3); margin-bottom: 6px; }
+.det-extras-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 3px 0; }
+.det-extras-row span:last-child { font-weight: 700; }
+
 /* ---- Telemóvel: cada linha da tabela vira um cartão ---- */
 @media (max-width: 859px) {
   .tbl-cards { overflow-x: visible; }
@@ -204,6 +243,16 @@ tr:last-child td { border-bottom: none; }
   .cards-plan tr.row-total .td-name { grid-column: 1; }
   .cards-plan tr.row-total .td-plan { grid-column: 2; text-align: right; }
   .cards-plan .td-void { display: none; }
+  /* o detalhe é um bloco largo, não um cartão de 3 colunas */
+  .cards-plan tr.row-detail { display: block; padding: 0 14px 14px; background: var(--surface-2); }
+  .cards-plan tr.row-detail td { display: block; padding: 0; background: none; }
+  .cards-plan tr.row-open { background: var(--surface-2); border-bottom: none; }
+  .cards-plan tr.row-open td { background: none; }
+  .det { --det-cols: minmax(0, 1fr) 74px; }
+  .det-hist { --det-cols: minmax(0, 1fr) 74px 74px; }
+  .det-head, .det-row { gap: 8px; }
+  .det-name { font-size: 13.5px; }
+  .det-row .n { font-size: 13.5px; }
 }
 
 /* Badges */

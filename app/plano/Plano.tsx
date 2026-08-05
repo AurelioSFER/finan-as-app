@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { typeOf, type Expense } from "@/lib/categories";
+import { catColor, catIcon, typeOf, type Expense } from "@/lib/categories";
 import {
   extraKey,
   extraPrefix,
@@ -15,7 +15,7 @@ import {
   type Budgets,
   type Extra,
 } from "@/lib/plan";
-import type { Sugestao } from "@/lib/planSuggest";
+import { medianaPorCategoria, type Sugestao } from "@/lib/planSuggest";
 import Sugerir from "./Sugerir";
 
 const ROWS: { key: string; icon: string; label: string; role: "in" | "out" | "save" }[] = [
@@ -40,6 +40,111 @@ function monthLabel(m: string) {
 }
 function parseNum(s: string) {
   return parseFloat(s.replace(/\s/g, "").replace(",", ".")) || 0;
+}
+
+/** Uma categoria por trás de uma rubrica do Plano. */
+type Detalhe = {
+  category: string;
+  /** Já lançado no mês escolhido (ou média/mês, na vista "Média por mês"). */
+  real: number;
+  /** Quantos movimentos deram esse valor. */
+  n: number;
+  /** O que costuma sair nesta categoria por mês (mediana dos meses anteriores). */
+  habitual: number;
+};
+
+/** O que está por trás de uma linha do Plano: categoria a categoria. */
+function DetalheRubrica({
+  itens,
+  extras,
+  planeado,
+  temHistorico,
+  label,
+  mesLabel,
+}: {
+  itens: Detalhe[];
+  extras: Extra[];
+  planeado: number;
+  temHistorico: boolean;
+  label: string;
+  mesLabel: string;
+}) {
+  if (itens.length === 0 && extras.length === 0) {
+    return (
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+        Nada em {label} em {mesLabel}, e também não há histórico. Assim que classificares movimentos nestas
+        categorias, aparecem aqui.
+      </p>
+    );
+  }
+
+  const maior = Math.max(...itens.map((i) => Math.max(i.real, i.habitual)), 1);
+  const somaReal = itens.reduce((a, i) => a + i.real, 0);
+  const somaHabitual = itens.reduce((a, i) => a + i.habitual, 0);
+
+  return (
+    <div className={"det" + (temHistorico ? " det-hist" : "")}>
+      <div className="det-head">
+        <span>Categoria</span>
+        {temHistorico && <span className="n">Habitual</span>}
+        <span className="n">{mesLabel}</span>
+      </div>
+
+      {itens.map((i) => (
+        <div key={i.category} className="det-row">
+          <span className="det-name">
+            <span className="det-ic" style={{ background: catColor(i.category) + "22", color: catColor(i.category) }}>
+              {catIcon(i.category)}
+            </span>
+            <span className="det-txt">
+              {i.category}
+              <small>
+                {i.n > 0 ? `${i.n} ${i.n === 1 ? "movimento" : "movimentos"}` : "ainda sem movimentos este mês"}
+              </small>
+            </span>
+          </span>
+          {temHistorico && (
+            <span className="n num det-hab">{i.habitual > 0 ? eur(i.habitual) : "—"}</span>
+          )}
+          <span className="n num det-real">{eur(i.real)}</span>
+          <span
+            className="det-bar"
+            style={{ width: `${Math.round((i.real / maior) * 100)}%`, background: catColor(i.category) }}
+          />
+        </div>
+      ))}
+
+      <div className="det-row det-sum">
+        <span className="det-name">Soma</span>
+        {temHistorico && <span className="n num det-hab">{eur(somaHabitual)}</span>}
+        <span className="n num det-real">{eur(somaReal)}</span>
+      </div>
+
+      {/* Os extras são previsões, não gastos — ficam fora do quadro do real. */}
+      {extras.length > 0 && (
+        <div className="det-extras">
+          <div className="det-extras-h">+ despesas fora do normal, contadas no planeado</div>
+          {extras.map((e, i) => (
+            <div key={i} className="det-extras-row">
+              <span>✨ {e.label}</span>
+              <span className="num">{eur(e.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="muted" style={{ margin: "10px 2px 0", fontSize: 12.5 }}>
+        {temHistorico ? (
+          <>
+            Planeaste <b>{eur(planeado)}</b>. <b>Habitual</b> é a mediana dos meses anteriores — foi daí que saiu o
+            plano{extras.length > 0 && <>, mais as despesas extra acima</>}.
+          </>
+        ) : (
+          <>Planeaste {eur(planeado)} para esta rubrica.</>
+        )}
+      </p>
+    </div>
+  );
 }
 
 function Bar({
@@ -105,6 +210,7 @@ export default function Plano({
   const [overrides, setOverrides] = useState<Record<string, Budgets>>({});
   const [extrasByMonth, setExtrasByMonth] = useState<Record<string, Extra[]>>(parsed.extras);
   const [wizard, setWizard] = useState(false);
+  const [aberta, setAberta] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const planned = useMemo<Budgets>(
@@ -129,6 +235,41 @@ export default function Plano({
       inMonth.filter((r) => r.kind === "gasto" && r.flag !== "R" && typeOf(r.category) === key).reduce((a, r) => a + r.amount, 0) /
       nMonths
     );
+  }
+
+  // ---- Abrir uma rubrica para ver de que é que ela é feita ----
+  const habitual = useMemo(
+    () => (month === "all" ? {} : medianaPorCategoria(spaceRows, month)),
+    [spaceRows, month]
+  );
+
+  /** As categorias por trás de uma linha do Plano: o que já saiu e o que costuma sair. */
+  function detalheDe(key: string): Detalhe[] {
+    const doMes =
+      key === "rendimento"
+        ? inMonth.filter((r) => r.kind === "entrada")
+        : inMonth.filter((r) => r.kind === "gasto" && r.flag !== "R" && typeOf(r.category) === key);
+
+    const acc = new Map<string, { real: number; n: number }>();
+    for (const r of doMes) {
+      const a = acc.get(r.category) ?? { real: 0, n: 0 };
+      acc.set(r.category, { real: a.real + r.amount, n: a.n + 1 });
+    }
+
+    // categorias habituais desta rubrica entram mesmo sem movimentos este mês:
+    // é isso que responde a "quais são os meus gastos fixos?"
+    const rubricaDe = (c: string) => (key === "rendimento" ? typeOf(c) === "Rendimento" : typeOf(c) === key);
+    const cats = new Set(acc.keys());
+    for (const [c, med] of Object.entries(habitual)) if (med > 0 && rubricaDe(c)) cats.add(c);
+
+    return Array.from(cats)
+      .map((c) => ({
+        category: c,
+        real: (acc.get(c)?.real ?? 0) / nMonths,
+        n: acc.get(c)?.n ?? 0,
+        habitual: habitual[c] ?? 0,
+      }))
+      .sort((a, b) => b.real - a.real || b.habitual - a.habitual);
   }
 
   function onPlanned(key: string, v: string) {
@@ -237,31 +378,56 @@ export default function Plano({
               const delta = real - plan;
               // cor do Δ: rendimento/poupança mais = bom; gastos mais = mau
               const good = r.role === "out" ? delta <= 0 : delta >= 0;
+              const open = aberta === r.key;
               return (
-                <tr key={r.key}>
-                  <td className="td-name" style={{ fontWeight: 600 }}>
-                    <span className="sec-ic">{r.icon}</span> {r.label}
-                  </td>
-                  <td className="n td-plan" data-label="Planeado">
-                    <input
-                      className="input input-cell"
-                      aria-label={`Planeado — ${r.label}`}
-                      inputMode="decimal"
-                      value={String(plan)}
-                      onChange={(e) => onPlanned(r.key, e.target.value)}
-                      onBlur={() => savePlanned(r.key)}
-                    />
-                  </td>
-                  <td className="n num td-real" data-label="Real" style={{ fontWeight: 700 }}>{eur(real)}</td>
-                  <td
-                    className="n num td-delta"
-                    data-label="Δ"
-                    style={{ fontWeight: 700, color: good ? "var(--good)" : "var(--bad)" }}
-                  >
-                    {delta >= 0 ? "+" : "−"}
-                    {eur(Math.abs(delta))}
-                  </td>
-                </tr>
+                <Fragment key={r.key}>
+                  <tr className={open ? "row-open" : undefined}>
+                    <td className="td-name">
+                      <button
+                        type="button"
+                        className="det-toggle"
+                        aria-expanded={open}
+                        onClick={() => setAberta(open ? null : r.key)}
+                      >
+                        <span className={"det-chev" + (open ? " is-open" : "")}>›</span>
+                        <span className="sec-ic">{r.icon}</span> {r.label}
+                      </button>
+                    </td>
+                    <td className="n td-plan" data-label="Planeado">
+                      <input
+                        className="input input-cell"
+                        aria-label={`Planeado — ${r.label}`}
+                        inputMode="decimal"
+                        value={String(plan)}
+                        onChange={(e) => onPlanned(r.key, e.target.value)}
+                        onBlur={() => savePlanned(r.key)}
+                      />
+                    </td>
+                    <td className="n num td-real" data-label="Real" style={{ fontWeight: 700 }}>{eur(real)}</td>
+                    <td
+                      className="n num td-delta"
+                      data-label="Δ"
+                      style={{ fontWeight: 700, color: good ? "var(--good)" : "var(--bad)" }}
+                    >
+                      {delta >= 0 ? "+" : "−"}
+                      {eur(Math.abs(delta))}
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr className="row-detail">
+                      <td colSpan={4}>
+                        <DetalheRubrica
+                          itens={detalheDe(r.key)}
+                          extras={r.role === "out" ? extras.filter((e) => e.rubrica === r.key) : []}
+                          planeado={plan}
+                          temHistorico={Object.keys(habitual).length > 0}
+                          label={r.label}
+                          mesLabel={monthLabel(month)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
             <tr className="row-total" style={{ background: "var(--surface-2)" }}>

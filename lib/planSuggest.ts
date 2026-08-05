@@ -94,6 +94,37 @@ export function analisar(rows: Expense[], alvo: string, janela = 6): Analise {
   return { meses, rubricas, porClassificar, rendimento, rendimentoDoMes };
 }
 
+/**
+ * Quanto costuma sair em cada categoria por mês, na mesma janela que a sugestão
+ * usa. Serve para abrir uma rubrica do Plano e ver de que é que ela é feita —
+ * inclusive as categorias que ainda não apareceram no mês corrente.
+ */
+export function medianaPorCategoria(rows: Expense[], alvo: string, janela = 6): Record<string, number> {
+  const meses = Array.from(new Set(rows.map((r) => monthOf(r.date))))
+    .filter((m) => m < alvo)
+    .sort()
+    .slice(-janela);
+  if (meses.length === 0) return {};
+
+  const naJanela = new Set(meses);
+  const porCat = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    if (r.kind === "gasto" && r.flag === "R") continue; // reembolsado não é gasto
+    const m = monthOf(r.date);
+    if (!naJanela.has(m)) continue;
+    const mm = porCat.get(r.category) ?? new Map<string, number>();
+    mm.set(m, (mm.get(m) ?? 0) + r.amount);
+    porCat.set(r.category, mm);
+  }
+
+  const out: Record<string, number> = {};
+  for (const [cat, mm] of porCat) {
+    // um mês sem nada nesta categoria conta como zero, senão a mediana inflaciona
+    out[cat] = stat(meses.map((m) => ({ m, v: mm.get(m) ?? 0 }))).mediana;
+  }
+  return out;
+}
+
 /** Soma dos extras previstos, por rubrica. */
 export function extrasPorRubrica(extras: Extra[]): Record<Rubrica, number> {
   const out = { Fixos: 0, Necessários: 0, Supérfluos: 0 } as Record<Rubrica, number>;
