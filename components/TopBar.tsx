@@ -38,6 +38,13 @@ export default function TopBar({ email, space }: { email?: string | null; space:
           <Link href="/import" className={pathname === "/import" ? "active" : ""}>Importar</Link>
         </nav>
 
+        <Link
+          className={"btn btn-ghost" + (pathname === "/conta" ? " active" : "")}
+          href="/conta"
+          aria-label="Conta e palavra-passe"
+        >
+          Conta
+        </Link>
         <button className="btn btn-ghost" onClick={logout}>
           Sair
         </button>
