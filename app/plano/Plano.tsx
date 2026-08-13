@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { catColor, catIcon, typeOf, type Expense } from "@/lib/categories";
+import { catColor, catIcon, typeOf, contaComoEntrada, pesoNoGasto, type Expense } from "@/lib/categories";
 import {
   extraKey,
   extraPrefix,
@@ -229,11 +229,12 @@ export default function Plano({
 
   function realFor(key: string): number {
     if (key === "rendimento") {
-      return inMonth.filter((r) => r.kind === "entrada").reduce((a, r) => a + r.amount, 0) / nMonths;
+      return inMonth.filter(contaComoEntrada).reduce((a, r) => a + r.amount, 0) / nMonths;
     }
     return (
-      inMonth.filter((r) => r.kind === "gasto" && r.flag !== "R" && typeOf(r.category) === key).reduce((a, r) => a + r.amount, 0) /
-      nMonths
+      inMonth
+        .filter((r) => typeOf(r.category) === key)
+        .reduce((a, r) => a + pesoNoGasto(r), 0) / nMonths
     );
   }
 
@@ -247,13 +248,15 @@ export default function Plano({
   function detalheDe(key: string): Detalhe[] {
     const doMes =
       key === "rendimento"
-        ? inMonth.filter((r) => r.kind === "entrada")
-        : inMonth.filter((r) => r.kind === "gasto" && r.flag !== "R" && typeOf(r.category) === key);
+        ? inMonth.filter(contaComoEntrada)
+        : inMonth.filter((r) => typeOf(r.category) === key);
 
     const acc = new Map<string, { real: number; n: number }>();
     for (const r of doMes) {
+      const v = key === "rendimento" ? r.amount : pesoNoGasto(r);
+      if (v === 0) continue;
       const a = acc.get(r.category) ?? { real: 0, n: 0 };
-      acc.set(r.category, { real: a.real + r.amount, n: a.n + 1 });
+      acc.set(r.category, { real: a.real + v, n: a.n + 1 });
     }
 
     // categorias habituais desta rubrica entram mesmo sem movimentos este mês:

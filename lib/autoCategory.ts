@@ -6,6 +6,9 @@ function norm(s: string): string {
 }
 
 const RULES: Array<{ words: string[]; category: string }> = [
+  // O banco escreve a conta conjunta com os dois nomes ligados por "&". Fica em
+  // primeiro por ser a regra mais específica de todas — o "&" só aparece aqui.
+  { category: "Conta conjunta", words: ["& francisca", "& aurelio"] },
   { category: "Salário", words: ["salario", "ordenado", "vencimento", "tfgest gestao"] },
   { category: "Apostas", words: ["betano", "betclic", "casino", "placard", "solverde", "bwin", "pokerstars", "888", "trustly"] },
   { category: "Supermercado", words: ["pingo doce", "pingo d", "continente", "mercadona", "auchan", "lidl", "minipreco", "intermarche", "aldi", "el corte", "spar", "froiz"] },

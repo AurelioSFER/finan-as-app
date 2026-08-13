@@ -38,7 +38,7 @@ export default async function ImportPage() {
       <p className="muted" style={{ marginBottom: 18 }}>
         Cola o Excel/CSV do banco (Caixa ou Revolut). Eu leio, adivinho as categorias pela memória, e tu confirmas.
       </p>
-      <Import rules={rules} defaultAccount={defaultAccount} goals={goals} />
+      <Import rules={rules} defaultAccount={defaultAccount} space={space} goals={goals} />
       <BottomNav />
     </div>
   );

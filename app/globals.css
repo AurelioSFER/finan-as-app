@@ -149,6 +149,9 @@ tr:last-child td { border-bottom: none; }
 /* Células com controlos dentro (largura fixa no PC, largura total no telemóvel) */
 .sel-cell { width: auto; min-width: 130px; padding: 7px 10px; }
 .sel-flag { width: auto; padding: 7px 10px; }
+/* o destino está vazio na maioria das linhas: estreito, para não empurrar
+   a coluna do flag para fora do cartão */
+.sel-dest { width: auto; min-width: 96px; padding: 7px 10px; }
 .input-cell { width: 92px; text-align: right; padding: 7px 9px; }
 .td-desc { white-space: normal; max-width: 170px; }
 
@@ -205,7 +208,7 @@ tr:last-child td { border-bottom: none; }
     display: block; margin-bottom: 5px;
     font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
   }
-  .tbl-cards .sel-cell, .tbl-cards .sel-flag, .tbl-cards .input-cell {
+  .tbl-cards .sel-cell, .tbl-cards .sel-flag, .tbl-cards .sel-dest, .tbl-cards .input-cell {
     width: 100%; min-width: 0; padding: 10px 12px; text-align: left;
   }
   .tbl-cards input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
@@ -228,9 +231,10 @@ tr:last-child td { border-bottom: none; }
   .cards-draft .td-amt { grid-column: 3; grid-row: 1; font-size: 15.5px; }
   .cards-draft .td-date { grid-column: 2 / -1; grid-row: 2; font-size: 12.5px; color: var(--ink-3); }
   .cards-draft .td-cat { grid-column: 2 / -1; grid-row: 3; }
-  /* o flag leva linha própria: assim a coluna da direita é só o valor
-     e a descrição fica com espaço para respirar */
-  .cards-draft .td-flag { grid-column: 2 / -1; grid-row: 4; }
+  /* destino e flag levam linha própria cada um: assim a coluna da direita é
+     só o valor e a descrição fica com espaço para respirar */
+  .cards-draft .td-dest { grid-column: 2 / -1; grid-row: 4; }
+  .cards-draft .td-flag { grid-column: 2 / -1; grid-row: 5; }
 
   /* Plano — cartão por rubrica */
   .cards-plan tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; align-items: end; }

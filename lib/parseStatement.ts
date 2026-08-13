@@ -1,21 +1,23 @@
 // Lê um extrato colado (Caixa ou Revolut) e devolve movimentos limpos.
 
+import { classifyTransfer, POR_DECIDIR, type Espaco } from "./transfers";
+
 export type ParsedRow = {
   date: string; // YYYY-MM-DD
   description: string;
   amount: number; // sempre positivo
   kind: "gasto" | "entrada";
+  /** Dinheiro que mudou de conta tua — sai da conta, mas não é consumo. */
+  isTransfer: boolean;
+  /** Conta de destino, quando a descrição a identifica. null = decides tu. */
+  toAccount: string | null;
 };
 
 export type ParseResult = {
   rows: ParsedRow[];
   format: "Caixa" | "Revolut" | "desconhecido";
-  skipped: number; // transferências internas / ruído ignorados
+  skipped: number; // espelhos de transferências + ruído por decidir
 };
-
-// Movimentos que são dinheiro a mudar de conta (não são gasto real).
-const INTERNAL =
-  /(CAR WAL CRT DEB REVOL|CARREGAMENTO COM CART|ARREDONDAMENTO DE TROCOS|REVOLUT BANK UAB|TRF CXDAPP|TRF CAIXADIRECTA|TRF IMEDIATA|IMPOSTO SELO|COMISSAO COMPRAS FORA)/i;
 
 function splitCSV(line: string, sep: string): string[] {
   const out: string[] = [];
@@ -44,7 +46,32 @@ function parseEURpt(s: string): number {
   return parseFloat(s.replace(/\s/g, "").replace(/\./g, "").replace(",", ".")) || 0;
 }
 
-export function parseStatement(raw: string): ParseResult {
+/**
+ * Decide se a linha entra, e com que destino.
+ * Devolve null quando a linha deve ser descartada.
+ */
+function classify(
+  description: string,
+  kind: "gasto" | "entrada",
+  espaco: Espaco
+): { isTransfer: boolean; toAccount: string | null } | null {
+  if (POR_DECIDIR.test(description)) return null;
+
+  const t = classifyTransfer(description, kind, espaco);
+  if (t === null) return { isTransfer: false, toAccount: null };
+
+  // A perna de entrada é o espelho de uma saída já registada no outro
+  // extrato — guardar as duas contava o dinheiro a dobrar.
+  if (t.leg === "entrada") return null;
+
+  return { isTransfer: true, toAccount: t.to };
+}
+
+/**
+ * @param espaco qual das duas contabilidades está a receber este extrato — o
+ *               mesmo texto do banco significa coisas diferentes conforme o livro.
+ */
+export function parseStatement(raw: string, espaco: Espaco = "pessoal"): ParseResult {
   const lines = raw.split(/\r?\n/);
   const isRevolut = /montante/i.test(raw) && /tipo/i.test(raw);
 
@@ -63,16 +90,14 @@ export function parseStatement(raw: string): ParseResult {
       const date = dateRaw.slice(0, 10);
       if (!desc || isNaN(montante) || montante === 0) continue;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-      if (INTERNAL.test(desc)) {
+
+      const kind = montante < 0 ? "gasto" : "entrada";
+      const c = classify(desc, kind, espaco);
+      if (!c) {
         skipped++;
         continue;
       }
-      rows.push({
-        date,
-        description: desc,
-        amount: Math.abs(montante),
-        kind: montante < 0 ? "gasto" : "entrada",
-      });
+      rows.push({ date, description: desc, amount: Math.abs(montante), kind, ...c });
     }
     return { rows, format: "Revolut", skipped };
   }
@@ -90,12 +115,15 @@ export function parseStatement(raw: string): ParseResult {
     const debito = parseEURpt(f[3] || "");
     const credito = parseEURpt(f[4] || "");
     if (!desc) continue;
-    if (INTERNAL.test(desc)) {
+    if (debito <= 0 && credito <= 0) continue;
+
+    const kind = debito > 0 ? "gasto" : "entrada";
+    const c = classify(desc, kind, espaco);
+    if (!c) {
       skipped++;
       continue;
     }
-    if (debito > 0) rows.push({ date, description: desc, amount: debito, kind: "gasto" });
-    else if (credito > 0) rows.push({ date, description: desc, amount: credito, kind: "entrada" });
+    rows.push({ date, description: desc, amount: debito > 0 ? debito : credito, kind, ...c });
   }
 
   return { rows, format: looksCaixa ? "Caixa" : "desconhecido", skipped };

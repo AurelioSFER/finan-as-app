@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
-import { goalNameOf, isSavings } from "@/lib/categories";
+import { goalNameOf, isSavings, saiuDaConta } from "@/lib/categories";
 import { parseBudgetRows, planCapacity, planForMonth } from "@/lib/plan";
 import Goals, { type Goal } from "./Goals";
 
@@ -57,11 +57,12 @@ export default async function ObjetivosPage() {
   // atribuídos diretamente a um objetivo.
   const { data: sav } = await supabase
     .from("expenses")
-    .select("date, amount, category, account, flag")
+    .select("date, amount, category, account, to_account, flag")
     .eq("kind", "gasto");
   const rows = (sav ?? []).filter(
     (r: any) =>
-      r.flag !== "R" && (space === "conjunta" ? r.account === "Conjunta" : r.account !== "Conjunta")
+      saiuDaConta({ ...r, kind: "gasto" }) &&
+      (space === "conjunta" ? r.account === "Conjunta" : r.account !== "Conjunta")
   );
 
   // Ritmo: média mensal do que saiu para poupança, investimento ou objetivos

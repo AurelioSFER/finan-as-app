@@ -6,22 +6,45 @@ import { createClient } from "@/lib/supabase/client";
 import { ACCOUNTS, FLAGS, isGoalCategory } from "@/lib/categories";
 import CategorySelect from "@/components/CategorySelect";
 import { parseStatement, type ParsedRow } from "@/lib/parseStatement";
+import { type Espaco } from "@/lib/transfers";
 import { merchantKey } from "@/lib/merchantKey";
 import { autoCategory } from "@/lib/autoCategory";
 
-type Draft = ParsedRow & { key: string; category: string; flag: string; include: boolean };
+type Draft = ParsedRow & {
+  key: string;
+  category: string;
+  flag: string;
+  /** Conta de destino. "" = não é transferência, conta como gasto normal. */
+  destino: string;
+  include: boolean;
+};
 
 function eur2(n: number) {
   return "€" + n.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * O `R` faz coisas diferentes conforme o dinheiro entra ou sai, e marcar os
+ * dois lados da mesma história dá gastos negativos. A explicação vai no
+ * tooltip e não no rótulo: a largura do `<select>` é a da opção mais comprida,
+ * e um rótulo explicativo empurrava a coluna toda para fora do cartão.
+ */
+function dicaReembolso(kind: "gasto" | "entrada"): string {
+  return kind === "entrada"
+    ? "Reembolso: esta entrada deixa de ser rendimento e abate ao gasto da mesma categoria."
+    : "Reembolsado: este gasto não conta. Usar só quando a devolução não entra na app.";
+}
+
 export default function Import({
   rules,
   defaultAccount,
+  space,
   goals,
 }: {
   rules: Record<string, string>;
   defaultAccount: string;
+  /** Qual das duas contabilidades está a receber o extrato. */
+  space: Espaco;
   /** Nomes dos objetivos ativos — aparecem no seletor de categoria. */
   goals: string[];
 }) {
@@ -52,11 +75,15 @@ export default function Import({
   function analisar(text: string = raw) {
     setError(null);
     setSavedCount(null);
-    const { rows, format, skipped } = parseStatement(text);
+    const { rows, format, skipped } = parseStatement(text, space);
     if (rows.length === 0) {
       setError("Não consegui ler movimentos. Confirma que colaste o extrato da Caixa ou da Revolut.");
       return;
     }
+    // Quando o extrato diz que houve transferência mas não diz para onde, o
+    // palpite é a outra conta principal — corriges na coluna Destino.
+    const palpite = format === "Revolut" ? "Caixa" : "Revolut";
+
     const d: Draft[] = rows.map((r) => {
       const key = merchantKey(r.description);
       return {
@@ -65,6 +92,7 @@ export default function Import({
         // 1º a memória aprendida, 2º o cérebro embutido, senão "Outros"
         category: rules[key] ?? autoCategory(r.description) ?? "Outros",
         flag: "",
+        destino: r.isTransfer ? r.toAccount ?? palpite : "",
         include: true,
       };
     });
@@ -90,6 +118,7 @@ export default function Import({
       kind: d.kind,
       category: d.category,
       account,
+      to_account: d.destino || null,
       flag: d.flag || null,
       notes: null as string | null,
     }));
@@ -104,6 +133,8 @@ export default function Import({
     // Ensinar a memória: chave -> categoria (dedupe, última vence). Ignora "Outros".
     const ruleMap = new Map<string, string>();
     chosen.forEach((d) => {
+      // transferências ficam de fora: não há comerciante para aprender
+      if (d.destino) return;
       // objetivos ficam de fora: a meta fecha-se e a regra ficaria órfã
       if (d.category && d.category !== "Outros" && !isGoalCategory(d.category)) ruleMap.set(d.key, d.category);
     });
@@ -182,6 +213,7 @@ export default function Import({
   }
 
   const incluidos = drafts.filter((d) => d.include).length;
+  const transferencias = drafts.filter((d) => d.include && d.destino).length;
 
   return (
     <>
@@ -189,7 +221,9 @@ export default function Import({
         <div className="toolbar" style={{ marginBottom: 10 }}>
           <span className="badge">{format}</span>
           <span className="muted">
-            {incluidos}/{drafts.length} a guardar{skipped ? ` · ${skipped} ignorados` : ""}
+            {incluidos}/{drafts.length} a guardar
+            {transferencias ? ` · ${transferencias} transferências` : ""}
+            {skipped ? ` · ${skipped} ignorados` : ""}
           </span>
           <div className="spacer" />
           <label className="muted" style={{ margin: 0 }}>Conta:</label>
@@ -221,6 +255,7 @@ export default function Import({
               <th>Descrição</th>
               <th className="n">Valor</th>
               <th>Categoria</th>
+              <th>Destino</th>
               <th>Flag</th>
             </tr>
           </thead>
@@ -242,12 +277,38 @@ export default function Import({
                   {eur2(d.amount)}
                 </td>
                 <td className="td-cat">
-                  <CategorySelect value={d.category} onChange={(v) => upd(i, { category: v })} goals={goals} />
+                  {d.destino ? (
+                    // Uma transferência não tem categoria: o dinheiro mudou de
+                    // conta, não foi consumido. Mostrar o seletor aqui só dava
+                    // a entender que a escolha muda alguma coisa — não muda.
+                    <span className="muted" style={{ fontSize: 13 }}>
+                      transferência
+                    </span>
+                  ) : (
+                    <CategorySelect value={d.category} onChange={(v) => upd(i, { category: v })} goals={goals} />
+                  )}
+                </td>
+                <td className="td-dest">
+                  <select
+                    className="select sel-dest"
+                    aria-label="Conta de destino (transferência)"
+                    title="Conta para onde o dinheiro foi. Em branco, o movimento conta como gasto."
+                    value={d.destino}
+                    onChange={(e) => upd(i, { destino: e.target.value })}
+                  >
+                    <option value="">—</option>
+                    {ACCOUNTS.filter((a) => a !== account).map((a) => (
+                      <option key={a} value={a}>
+                        ↗ {a}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="td-flag">
                   <select
                     className="select sel-flag"
-                    aria-label="Marca (reembolsado / prenda)"
+                    aria-label="Marca (reembolso / prenda)"
+                    title={dicaReembolso(d.kind)}
                     value={d.flag}
                     onChange={(e) => upd(i, { flag: e.target.value })}
                   >

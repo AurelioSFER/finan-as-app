@@ -3,7 +3,7 @@
 // (um seguro, uma avaria) puxava a média para cima e o plano ficava folgado
 // de mais todos os meses.
 
-import { typeOf, type Expense } from "./categories";
+import { typeOf, contaComoEntrada, isTransfer, pesoNoGasto, type Expense } from "./categories";
 import { RUBRICAS, type Extra, type Rubrica } from "./plan";
 
 export type Stat = {
@@ -63,11 +63,12 @@ export function analisar(rows: Expense[], alvo: string, janela = 6): Analise {
     .sort();
   const meses = anteriores.slice(-janela);
 
-  // gastos reembolsados não são gasto real — o dinheiro volta
-  const gastos = rows.filter((r) => r.kind === "gasto" && r.flag !== "R");
-
+  // O peso é negativo quando é dinheiro a voltar, por isso um reembolso abate
+  // à rubrica que o originou em vez de inflacionar o rendimento do mês.
   const soma = (m: string, teste: (r: Expense) => boolean) =>
-    gastos.filter((r) => monthOf(r.date) === m && teste(r)).reduce((a, r) => a + r.amount, 0);
+    rows
+      .filter((r) => monthOf(r.date) === m && teste(r))
+      .reduce((a, r) => a + pesoNoGasto(r), 0);
 
   const rubricas: Record<string, Stat> = {};
   for (const k of [...RUBRICAS, "Poupança"]) {
@@ -82,13 +83,13 @@ export function analisar(rows: Expense[], alvo: string, janela = 6): Analise {
     meses.map((m) => ({
       m,
       v: rows
-        .filter((r) => r.kind === "entrada" && monthOf(r.date) === m)
+        .filter((r) => contaComoEntrada(r) && monthOf(r.date) === m)
         .reduce((a, r) => a + r.amount, 0),
     }))
   );
 
   const rendimentoDoMes = rows
-    .filter((r) => r.kind === "entrada" && monthOf(r.date) === alvo)
+    .filter((r) => contaComoEntrada(r) && monthOf(r.date) === alvo)
     .reduce((a, r) => a + r.amount, 0);
 
   return { meses, rubricas, porClassificar, rendimento, rendimentoDoMes };
@@ -109,11 +110,14 @@ export function medianaPorCategoria(rows: Expense[], alvo: string, janela = 6): 
   const naJanela = new Set(meses);
   const porCat = new Map<string, Map<string, number>>();
   for (const r of rows) {
-    if (r.kind === "gasto" && r.flag === "R") continue; // reembolsado não é gasto
+    // rendimento entra pelo valor; tudo o resto pelo peso, que já é zero nas
+    // transferências e negativo no dinheiro que voltou
+    const v = contaComoEntrada(r) ? r.amount : pesoNoGasto(r);
+    if (v === 0) continue;
     const m = monthOf(r.date);
     if (!naJanela.has(m)) continue;
     const mm = porCat.get(r.category) ?? new Map<string, number>();
-    mm.set(m, (mm.get(m) ?? 0) + r.amount);
+    mm.set(m, (mm.get(m) ?? 0) + v);
     porCat.set(r.category, mm);
   }
 

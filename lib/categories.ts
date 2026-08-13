@@ -58,10 +58,14 @@ export type Account = (typeof ACCOUNTS)[number];
 export const KINDS = ["gasto", "entrada"] as const;
 export type Kind = (typeof KINDS)[number];
 
-// Flags: R = reembolsado (recebes/recebeste de volta), P = prenda
+// Flags: R = reembolso, P = prenda.
+//
+// O R serve os dois lados da mesma história e o `kind` decide qual:
+//   num gasto   -> não conta (só usar quando a devolução não entra na app)
+//   numa entrada-> não é rendimento, abate ao gasto da mesma categoria
 export const FLAGS = [
   { value: "", label: "—" },
-  { value: "R", label: "Reembolsado" },
+  { value: "R", label: "Reembolso" },
   { value: "P", label: "Prenda" },
 ] as const;
 
@@ -73,10 +77,70 @@ export type Expense = {
   kind: Kind;
   category: string;
   account: string;
+  /** Preenchido só nas transferências: a conta tua onde o dinheiro entrou. */
+  to_account?: string | null;
   flag: string | null;
   notes: string | null;
   created_at?: string;
 };
+
+// ---- Um movimento conta como gasto? ----
+// A regra vive só aqui. Está usada no dashboard, no plano, nos objetivos e
+// nas sugestões — se cada um tiver a sua cópia, os ecrãs deixam de bater
+// certo uns com os outros à primeira exceção nova.
+
+type Movimento = {
+  kind: string;
+  flag: string | null;
+  category: string;
+  to_account?: string | null;
+};
+
+/** Dinheiro teu que mudou de conta: sai daqui, entra noutra conta tua. */
+export function isTransfer(r: Movimento): boolean {
+  return !!r.to_account;
+}
+
+/** Saiu mesmo da conta: nem reembolsado, nem transferência interna. */
+export function saiuDaConta(r: Movimento): boolean {
+  return r.kind === "gasto" && r.flag !== "R" && !isTransfer(r);
+}
+
+/** Saiu e foi consumido — o "gasto real" dos totais. */
+export function contaComoGasto(r: Movimento): boolean {
+  return saiuDaConta(r) && !isSavings(r.category);
+}
+
+/** Saiu mas guardaste — poupança, investimento ou objetivo. */
+export function contaComoPoupanca(r: Movimento): boolean {
+  return saiuDaConta(r) && isSavings(r.category);
+}
+
+/** Entrou dinheiro novo. Uma transferência tua ou um reembolso não são rendimento. */
+export function contaComoEntrada(r: Movimento): boolean {
+  return r.kind === "entrada" && !isTransfer(r) && r.flag !== "R";
+}
+
+/**
+ * Quanto é que este movimento pesa nos gastos.
+ *
+ * Positivo quando saiu dinheiro, **negativo quando voltou**, zero quando não
+ * conta. É isto que permite ter uma prenda de 100 € com 75 € devolvidos a
+ * aparecer como 25 € gastos em `Prendas`, em vez de 100 € de gasto e 75 € de
+ * rendimento que nunca ganhaste.
+ *
+ * Todo o dinheiro que entra tem de aterrar algures ou o saldo deixa de bater:
+ * ou é rendimento (a predefinição), ou é dinheiro a voltar e abate ao gasto.
+ * A marca `R` é que escolhe, movimento a movimento — nunca é automática.
+ */
+export function pesoNoGasto(r: Movimento & { amount: number }): number {
+  if (isTransfer(r)) return 0;
+  if (r.kind === "entrada") return r.flag === "R" ? -r.amount : 0;
+  // Um gasto marcado como reembolsado só se apaga quando a devolução não
+  // chega a entrar na app (te pagaram em numerário). Se importares a entrada,
+  // marca-a a ela — senão o gasto desaparece e o dinheiro entra duas vezes.
+  return r.flag === "R" ? 0 : r.amount;
+}
 
 // Accent principal (estilo Revolut: violeta elétrico).
 export const ACCENT = "#7c6bff";
