@@ -80,8 +80,10 @@ export default function Expenses({
   async function changeCategory(row: Expense, category: string) {
     if (!(await patch(row, { category }))) return;
     // Objetivos não se aprendem: a meta fecha-se um dia e a regra ficaria a
-    // mandar movimentos para um objetivo que já não existe.
-    if (category !== "Outros" && !isGoalCategory(category)) {
+    // mandar movimentos para um objetivo que já não existe. Entradas também
+    // não: partilham chaves com gastos (o ordenado e as compras no posto dão
+    // ambos "TFGEST") e a categoria de um saltava para o outro.
+    if (row.kind === "gasto" && category !== "Outros" && !isGoalCategory(category)) {
       await supabase.from("merchant_rules").upsert({ key: merchantKey(row.description), category }, { onConflict: "key" });
     }
   }

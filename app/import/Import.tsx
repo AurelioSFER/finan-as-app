@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ACCOUNTS, FLAGS, isGoalCategory } from "@/lib/categories";
 import CategorySelect from "@/components/CategorySelect";
-import { parseStatement, type ParsedRow } from "@/lib/parseStatement";
+import { parseStatement, type ParsedRow, type Descartada } from "@/lib/parseStatement";
 import { type Espaco } from "@/lib/transfers";
 import { merchantKey } from "@/lib/merchantKey";
 import { autoCategory } from "@/lib/autoCategory";
@@ -18,6 +18,8 @@ type Draft = ParsedRow & {
   destino: string;
   /** Já existe um movimento igual gravado nesta conta. */
   jaExiste: boolean;
+  /** O leitor não guardaria esta linha sozinho; entra desmarcada com o motivo. */
+  motivo?: "espelho" | "por decidir";
   include: boolean;
 };
 
@@ -64,7 +66,6 @@ export default function Import({
   const [drafts, setDrafts] = useState<Draft[] | null>(null);
   const [account, setAccount] = useState<string>(defaultAccount);
   const [format, setFormat] = useState<string>("");
-  const [skipped, setSkipped] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
@@ -153,7 +154,7 @@ export default function Import({
   }
 
   /** Transforma movimentos lidos (de texto ou de imagem) em linhas para rever. */
-  function montarDrafts(rows: ParsedRow[], formato: string) {
+  function montarDrafts(rows: ParsedRow[], formato: string, descartadas: Descartada[] = []) {
     // Quando o extrato diz que houve transferência mas não diz para onde, o
     // palpite é a outra conta principal — corriges na coluna Destino.
     const palpite = formato === "Revolut" ? "Caixa" : "Revolut";
@@ -163,17 +164,38 @@ export default function Import({
       return {
         ...r,
         key,
-        // 1º a memória aprendida, 2º o cérebro embutido, senão "Outros"
-        category: rules[key] ?? autoCategory(r.description) ?? "Outros",
+        // 1º a memória aprendida, 2º o cérebro embutido, senão "Outros".
+        // A memória só vale entre gastos: o ordenado e as compras no posto
+        // partilham a chave "TFGEST", e sem isto a categoria de um saltava
+        // para o outro.
+        category: (r.kind === "gasto" ? rules[key] : undefined) ?? autoCategory(r.description) ?? "Outros",
         flag: "",
         destino: r.isTransfer ? r.toAccount ?? palpite : "",
         jaExiste: false,
         include: true,
       };
     });
-    setDrafts(d);
+
+    // As descartadas vão para o fim, desmarcadas: ficam à vista sem entrarem
+    // sozinhas, e quem importa pode discordar do leitor.
+    const dd: Draft[] = descartadas.map((r) => ({
+      ...r,
+      key: merchantKey(r.description),
+      category:
+        (r.kind === "gasto" ? rules[merchantKey(r.description)] : undefined) ??
+        autoCategory(r.description) ??
+        "Outros",
+      flag: "",
+      destino: "",
+      jaExiste: false,
+      include: false,
+      motivo: r.motivo,
+    }));
+
+    const d2 = [...d, ...dd];
+    setDrafts(d2);
     setFormat(formato);
-    return d;
+    return d2;
   }
 
   /**
@@ -226,7 +248,7 @@ export default function Import({
   function analisar(text: string = raw) {
     setError(null);
     setSavedCount(null);
-    const { rows, format, skipped } = parseStatement(text, space);
+    const { rows, format, descartadas } = parseStatement(text, space);
     if (rows.length === 0) {
       setError("Não consegui ler movimentos. Confirma que colaste o extrato da Caixa ou da Revolut.");
       return;
@@ -236,8 +258,7 @@ export default function Import({
       defaultAccount !== "Conjunta" ? (format === "Revolut" ? "Revolut" : "Caixa") : defaultAccount;
     setAccount(conta);
 
-    const d = montarDrafts(rows, format);
-    setSkipped(skipped);
+    const d = montarDrafts(rows, format, descartadas);
     setAvisos([]);
     marcarRepetidos(d, conta);
   }
@@ -275,6 +296,8 @@ export default function Import({
     chosen.forEach((d) => {
       // transferências ficam de fora: não há comerciante para aprender
       if (d.destino) return;
+      // entradas também: uma regra aprendida num gasto não se aplica a elas
+      if (d.kind !== "gasto") return;
       // objetivos ficam de fora: a meta fecha-se e a regra ficaria órfã
       if (d.category && d.category !== "Outros" && !isGoalCategory(d.category)) ruleMap.set(d.key, d.category);
     });
@@ -375,6 +398,7 @@ export default function Import({
   const incluidos = drafts.filter((d) => d.include).length;
   const transferencias = drafts.filter((d) => d.include && d.destino).length;
   const repetidos = drafts.filter((d) => d.jaExiste).length;
+  const descartadas = drafts.filter((d) => d.motivo).length;
 
   return (
     <>
@@ -385,7 +409,7 @@ export default function Import({
             {incluidos}/{drafts.length} a guardar
             {transferencias ? ` · ${transferencias} transferências` : ""}
             {repetidos ? ` · ${repetidos} já importados` : ""}
-            {skipped ? ` · ${skipped} ignorados` : ""}
+            {descartadas ? ` · ${descartadas} para reveres` : ""}
             {verificandoRepetidos ? " · a procurar repetidos…" : ""}
           </span>
           <div className="spacer" />
@@ -466,6 +490,24 @@ export default function Import({
                   {d.jaExiste && (
                     <span className="badge" style={{ marginLeft: 6 }} title="Já existe um movimento igual nesta conta. Desmarcado para não duplicar — volta a marcar se for mesmo um movimento diferente.">
                       já importado
+                    </span>
+                  )}
+                  {d.motivo === "espelho" && (
+                    <span
+                      className="badge"
+                      style={{ marginLeft: 6 }}
+                      title="Parece a outra metade de uma transferência tua, já registada no outro extrato. Mas o banco escreve o nome de quem envia — se isto veio de outra pessoa com o mesmo nome, marca para entrar."
+                    >
+                      espelho?
+                    </span>
+                  )}
+                  {d.motivo === "por decidir" && (
+                    <span
+                      className="badge"
+                      style={{ marginLeft: 6 }}
+                      title="Comissão ou movimento interno que a app ainda não sabe classificar. Marca se quiseres que conte."
+                    >
+                      por decidir
                     </span>
                   )}
                 </td>
