@@ -23,6 +23,7 @@ export const CATEGORIES = [
   "Casa",
   "Ginásio",
   "Salário",
+  "Subsídio alimentação",
   "Poupança",
   "Investimento",
   "Fundo emergência",
@@ -52,7 +53,7 @@ export function isSavings(category: string): boolean {
   return SAVINGS_CATEGORIES.includes(category) || isGoalCategory(category);
 }
 
-export const ACCOUNTS = ["Caixa", "Revolut", "Conjunta", "Trade Republic", "XTB"] as const;
+export const ACCOUNTS = ["Caixa", "Revolut", "Conjunta", "Cartão refeição", "Trade Republic", "XTB"] as const;
 export type Account = (typeof ACCOUNTS)[number];
 
 // gasto = sai dinheiro | entrada = entra dinheiro
@@ -169,6 +170,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Casa: "#a9e34b",
   Ginásio: "#ffa94d",
   Salário: "#37b24d",
+  "Subsídio alimentação": "#40c057",
   Poupança: "#38d9a9",
   Investimento: "#22b8cf",
   "Fundo emergência": "#ffa94d",
@@ -203,6 +205,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
   Casa: "🛋️",
   Ginásio: "🏋️",
   Salário: "💵",
+  "Subsídio alimentação": "🎟️",
   Poupança: "💰",
   Investimento: "📈",
   "Fundo emergência": "🛟",
@@ -249,6 +252,7 @@ export const CATEGORY_TYPE: Record<string, string> = {
   Investimento: "Poupança",
   "Fundo emergência": "Poupança",
   Salário: "Rendimento",
+  "Subsídio alimentação": "Rendimento",
   Outros: "Por classificar",
 };
 
