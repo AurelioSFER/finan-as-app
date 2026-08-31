@@ -16,8 +16,19 @@ type Draft = ParsedRow & {
   flag: string;
   /** Conta de destino. "" = não é transferência, conta como gasto normal. */
   destino: string;
+  /** Já existe um movimento igual gravado nesta conta. */
+  jaExiste: boolean;
   include: boolean;
 };
+
+/**
+ * Identidade de um movimento para efeitos de repetição: data, descrição e
+ * valor. Não inclui a categoria de propósito — o mesmo movimento importado
+ * duas vezes pode ter sido categorizado de maneira diferente à segunda.
+ */
+function chaveMovimento(date: string, description: string, amount: number): string {
+  return `${date}|${description.trim().toLowerCase()}|${Number(amount).toFixed(2)}`;
+}
 
 function eur2(n: number) {
   return "€" + n.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -59,6 +70,8 @@ export default function Import({
   const [savedCount, setSavedCount] = useState<number | null>(null);
   const [lendoImagem, setLendoImagem] = useState(false);
   const [avisos, setAvisos] = useState<string[]>([]);
+  const [verificandoRepetidos, setVerificandoRepetidos] = useState(false);
+  const [falhouVerificacao, setFalhouVerificacao] = useState(false);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -127,7 +140,8 @@ export default function Import({
         return;
       }
 
-      montarDrafts(rows, "Imagem");
+      const d = montarDrafts(rows, "Imagem");
+      marcarRepetidos(d, account);
       const av = [...(data.avisos ?? [])];
       if (data.descartados > 0) av.push(`${data.descartados} linha(s) vieram incompletas e ficaram de fora.`);
       setAvisos(av);
@@ -153,11 +167,60 @@ export default function Import({
         category: rules[key] ?? autoCategory(r.description) ?? "Outros",
         flag: "",
         destino: r.isTransfer ? r.toAccount ?? palpite : "",
+        jaExiste: false,
         include: true,
       };
     });
     setDrafts(d);
     setFormat(formato);
+    return d;
+  }
+
+  /**
+   * Marca as linhas que já estão gravadas nesta conta e desmarca-as, para não
+   * entrarem outra vez. A app não impede repetidos à força: dois cafés iguais
+   * no mesmo dia são dois movimentos verdadeiros, e uma regra rígida apagava o
+   * segundo em silêncio. Aqui avisa-se e a decisão fica com quem importa.
+   */
+  async function marcarRepetidos(lista: Draft[], conta: string) {
+    setVerificandoRepetidos(true);
+    setFalhouVerificacao(false);
+    try {
+      const datas = lista.map((d) => d.date).sort();
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("date, description, amount")
+        .eq("account", conta)
+        .gte("date", datas[0])
+        .lte("date", datas[datas.length - 1]);
+      if (error) throw error;
+
+      // Contagem, não apenas presença: se o ficheiro traz dois movimentos
+      // iguais e só um está gravado, o segundo é novo e tem de entrar.
+      const porGravar = new Map<string, number>();
+      for (const r of data ?? []) {
+        const k = chaveMovimento(String(r.date), String(r.description), Number(r.amount));
+        porGravar.set(k, (porGravar.get(k) ?? 0) + 1);
+      }
+
+      setDrafts(
+        lista.map((d) => {
+          const k = chaveMovimento(d.date, d.description, d.amount);
+          const restam = porGravar.get(k) ?? 0;
+          if (restam > 0) {
+            porGravar.set(k, restam - 1);
+            return { ...d, jaExiste: true, include: false };
+          }
+          return { ...d, jaExiste: false, include: true };
+        })
+      );
+    } catch {
+      // Falhar em silêncio aqui era o pior dos mundos: ficavas a pensar que
+      // tinha verificado e a gravar repetidos sem saber.
+      setFalhouVerificacao(true);
+    } finally {
+      setVerificandoRepetidos(false);
+    }
   }
 
   function analisar(text: string = raw) {
@@ -168,10 +231,15 @@ export default function Import({
       setError("Não consegui ler movimentos. Confirma que colaste o extrato da Caixa ou da Revolut.");
       return;
     }
-    montarDrafts(rows, format);
+    // A conta tem de ser decidida antes: e ela que diz onde procurar repetidos.
+    const conta =
+      defaultAccount !== "Conjunta" ? (format === "Revolut" ? "Revolut" : "Caixa") : defaultAccount;
+    setAccount(conta);
+
+    const d = montarDrafts(rows, format);
     setSkipped(skipped);
     setAvisos([]);
-    if (defaultAccount !== "Conjunta") setAccount(format === "Revolut" ? "Revolut" : "Caixa");
+    marcarRepetidos(d, conta);
   }
 
   function upd(i: number, patch: Partial<Draft>) {
@@ -306,6 +374,7 @@ export default function Import({
 
   const incluidos = drafts.filter((d) => d.include).length;
   const transferencias = drafts.filter((d) => d.include && d.destino).length;
+  const repetidos = drafts.filter((d) => d.jaExiste).length;
 
   return (
     <>
@@ -315,11 +384,22 @@ export default function Import({
           <span className="muted">
             {incluidos}/{drafts.length} a guardar
             {transferencias ? ` · ${transferencias} transferências` : ""}
+            {repetidos ? ` · ${repetidos} já importados` : ""}
             {skipped ? ` · ${skipped} ignorados` : ""}
+            {verificandoRepetidos ? " · a procurar repetidos…" : ""}
           </span>
           <div className="spacer" />
           <label className="muted" style={{ margin: 0 }}>Conta:</label>
-          <select className="select sel-cell" aria-label="Conta" value={account} onChange={(e) => setAccount(e.target.value)}>
+          <select
+            className="select sel-cell"
+            aria-label="Conta"
+            value={account}
+            onChange={(e) => {
+              // Trocar de conta muda onde os repetidos são procurados.
+              setAccount(e.target.value);
+              if (drafts) marcarRepetidos(drafts, e.target.value);
+            }}
+          >
             {ACCOUNTS.map((a) => (
               <option key={a} value={a}>
                 {a}
@@ -336,6 +416,12 @@ export default function Import({
           </button>
         </div>
         {error && <div className="error" style={{ marginTop: 10 }}>{error}</div>}
+        {falhouVerificacao && (
+          <div className="error" style={{ marginTop: 10 }}>
+            Não consegui verificar o que já está gravado. Confirma as datas antes de guardar —
+            se este extrato já foi importado, ficas com tudo a dobrar.
+          </div>
+        )}
         {avisos.length > 0 && (
           // A leitura de um print pode falhar linhas. Dizer quais, em vez de
           // deixar o utilizador descobrir que faltam movimentos semanas depois.
@@ -375,7 +461,14 @@ export default function Import({
                   />
                 </td>
                 <td className="num td-date">{d.date.slice(8, 10)}/{d.date.slice(5, 7)}</td>
-                <td className="td-desc">{d.description}</td>
+                <td className="td-desc">
+                  {d.description}
+                  {d.jaExiste && (
+                    <span className="badge" style={{ marginLeft: 6 }} title="Já existe um movimento igual nesta conta. Desmarcado para não duplicar — volta a marcar se for mesmo um movimento diferente.">
+                      já importado
+                    </span>
+                  )}
+                </td>
                 <td className={"n td-amt " + (d.kind === "entrada" ? "amount-in" : "amount-out")}>
                   {d.kind === "entrada" ? "+" : "−"}
                   {eur2(d.amount)}
