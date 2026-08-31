@@ -53,8 +53,37 @@ export function isSavings(category: string): boolean {
   return SAVINGS_CATEGORIES.includes(category) || isGoalCategory(category);
 }
 
-export const ACCOUNTS = ["Caixa", "Revolut", "Conjunta", "Cartão refeição", "Trade Republic", "XTB"] as const;
+export const ACCOUNTS = [
+  "Caixa",
+  "Revolut",
+  "Conjunta",
+  "Cartão refeição",
+  "Trade Republic",
+  "XTB",
+  "Objetivo iPhone",
+] as const;
 export type Account = (typeof ACCOUNTS)[number];
+
+/**
+ * Contas de guardar, e o que cada uma representa.
+ *
+ * Nem todas as transferências são iguais. Passar da Revolut para a Caixa não
+ * muda nada: o dinheiro continua à mão para um jantar. Passar para a XTB
+ * tira-o do dia-a-dia — para o gastares tens de vender e esperar. A primeira
+ * é invisível, a segunda tem de aparecer, senão o mês parece ter sobrado
+ * dinheiro que já não está disponível.
+ *
+ * As que ficam de fora deste mapa são contas de gastar.
+ */
+export const CONTAS_GUARDAR: Record<string, "Poupança" | "Investimento"> = {
+  "Trade Republic": "Poupança",
+  "Objetivo iPhone": "Poupança",
+  XTB: "Investimento",
+};
+
+export function isContaGuardar(conta?: string | null): boolean {
+  return !!conta && conta in CONTAS_GUARDAR;
+}
 
 // gasto = sai dinheiro | entrada = entra dinheiro
 export const KINDS = ["gasto", "entrada"] as const;
@@ -98,24 +127,40 @@ type Movimento = {
   to_account?: string | null;
 };
 
+/**
+ * A categoria que vale para as contas.
+ *
+ * Uma transferência não tem categoria escolhida por ninguém — mas se for para
+ * uma conta de guardar, o destino já diz tudo: aquilo é poupança ou
+ * investimento. Assim os gráficos, as rubricas do Plano e os totais continuam
+ * a agrupar por categoria sem precisarem de saber o que é uma transferência.
+ */
+export function categoriaEfetiva(r: Movimento): string {
+  if (isTransfer(r) && isContaGuardar(r.to_account)) return CONTAS_GUARDAR[r.to_account!];
+  return r.category;
+}
+
 /** Dinheiro teu que mudou de conta: sai daqui, entra noutra conta tua. */
 export function isTransfer(r: Movimento): boolean {
   return !!r.to_account;
 }
 
-/** Saiu mesmo da conta: nem reembolsado, nem transferência interna. */
+/** Saiu mesmo do que tens disponível: nem reembolsado, nem mudança de bolso. */
 export function saiuDaConta(r: Movimento): boolean {
-  return r.kind === "gasto" && r.flag !== "R" && !isTransfer(r);
+  if (r.kind !== "gasto" || r.flag === "R") return false;
+  // Uma transferência para conta de guardar saiu do teu disponível; para
+  // outra conta de gastar, não.
+  return !isTransfer(r) || isContaGuardar(r.to_account);
 }
 
 /** Saiu e foi consumido — o "gasto real" dos totais. */
 export function contaComoGasto(r: Movimento): boolean {
-  return saiuDaConta(r) && !isSavings(r.category);
+  return saiuDaConta(r) && !isSavings(categoriaEfetiva(r));
 }
 
 /** Saiu mas guardaste — poupança, investimento ou objetivo. */
 export function contaComoPoupanca(r: Movimento): boolean {
-  return saiuDaConta(r) && isSavings(r.category);
+  return saiuDaConta(r) && isSavings(categoriaEfetiva(r));
 }
 
 /** Entrou dinheiro novo. Uma transferência tua ou um reembolso não são rendimento. */
@@ -136,7 +181,9 @@ export function contaComoEntrada(r: Movimento): boolean {
  * A marca `R` é que escolhe, movimento a movimento — nunca é automática.
  */
 export function pesoNoGasto(r: Movimento & { amount: number }): number {
-  if (isTransfer(r)) return 0;
+  // Transferência para uma conta de guardar: o dinheiro saiu do que tens
+  // disponível, por isso pesa. Para outra conta de gastar, não mudou nada.
+  if (isTransfer(r)) return isContaGuardar(r.to_account) ? r.amount : 0;
   if (r.kind === "entrada") return r.flag === "R" ? -r.amount : 0;
   // Um gasto marcado como reembolsado só se apaga quando a devolução não
   // chega a entrar na app (te pagaram em numerário). Se importares a entrada,

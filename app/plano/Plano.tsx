@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { catColor, catIcon, typeOf, contaComoEntrada, pesoNoGasto, type Expense } from "@/lib/categories";
+import { catColor, catIcon, typeOf, contaComoEntrada, pesoNoGasto, categoriaEfetiva, type Expense } from "@/lib/categories";
 import {
   extraKey,
   extraPrefix,
@@ -233,7 +233,7 @@ export default function Plano({
     }
     return (
       inMonth
-        .filter((r) => typeOf(r.category) === key)
+        .filter((r) => typeOf(categoriaEfetiva(r)) === key)
         .reduce((a, r) => a + pesoNoGasto(r), 0) / nMonths
     );
   }
@@ -249,14 +249,15 @@ export default function Plano({
     const doMes =
       key === "rendimento"
         ? inMonth.filter(contaComoEntrada)
-        : inMonth.filter((r) => typeOf(r.category) === key);
+        : inMonth.filter((r) => typeOf(categoriaEfetiva(r)) === key);
 
     const acc = new Map<string, { real: number; n: number }>();
     for (const r of doMes) {
       const v = key === "rendimento" ? r.amount : pesoNoGasto(r);
       if (v === 0) continue;
-      const a = acc.get(r.category) ?? { real: 0, n: 0 };
-      acc.set(r.category, { real: a.real + v, n: a.n + 1 });
+      const cat = categoriaEfetiva(r);
+      const a = acc.get(cat) ?? { real: 0, n: 0 };
+      acc.set(cat, { real: a.real + v, n: a.n + 1 });
     }
 
     // categorias habituais desta rubrica entram mesmo sem movimentos este mês:

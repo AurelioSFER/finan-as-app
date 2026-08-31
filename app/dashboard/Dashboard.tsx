@@ -21,6 +21,7 @@ import {
   contaComoGasto,
   contaComoEntrada,
   pesoNoGasto,
+  categoriaEfetiva,
   type Expense,
 } from "@/lib/categories";
 import {
@@ -101,7 +102,7 @@ function DeltaAbs({ cur, prev }: { cur: number; prev: number | undefined }) {
   );
 }
 
-type Agg = { in: number; out: number; save: number };
+type Agg = { in: number; out: number; save: number; inv: number };
 
 export default function Dashboard({ rows, space }: { rows: Expense[]; space: string }) {
   const spaceRows = useMemo(
@@ -127,12 +128,14 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
     const map = new Map<string, Agg>();
     for (const r of spaceRows) {
       const m = monthOf(r.date);
-      const a = map.get(m) ?? { in: 0, out: 0, save: 0 };
+      const a = map.get(m) ?? { in: 0, out: 0, save: 0, inv: 0 };
       if (contaComoEntrada(r)) a.in += r.amount;
       else {
         // negativo quando é dinheiro a voltar — abate ao gasto, não é rendimento
         const p = pesoNoGasto(r);
-        if (isSavings(r.category)) a.save += p;
+        const cat = categoriaEfetiva(r);
+        if (cat === "Investimento") a.inv += p;
+        else if (isSavings(cat)) a.save += p;
         else a.out += p;
       }
       map.set(m, a);
@@ -148,19 +151,23 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
   }, [monthsAsc, month]);
 
   const entradas = inMonth.filter(contaComoEntrada).reduce((a, r) => a + r.amount, 0);
-  const gastosReais = inMonth.reduce((a, r) => a + (isSavings(r.category) ? 0 : pesoNoGasto(r)), 0);
-  const poupado = inMonth.reduce((a, r) => a + (isSavings(r.category) ? pesoNoGasto(r) : 0), 0);
-  const saldo = entradas - gastosReais - poupado;
+  const gastosReais = inMonth.reduce((a, r) => a + (isSavings(categoriaEfetiva(r)) ? 0 : pesoNoGasto(r)), 0);
+  const poupado = inMonth.reduce(
+    (a, r) => a + (categoriaEfetiva(r) !== "Investimento" && isSavings(categoriaEfetiva(r)) ? pesoNoGasto(r) : 0),
+    0
+  );
+  const investido = inMonth.reduce((a, r) => a + (categoriaEfetiva(r) === "Investimento" ? pesoNoGasto(r) : 0), 0);
+  const saldo = entradas - gastosReais - poupado - investido;
 
   const prevAgg = prevMonth ? aggByMonth.get(prevMonth) : undefined;
-  const prevSaldo = prevAgg ? prevAgg.in - prevAgg.out - prevAgg.save : undefined;
+  const prevSaldo = prevAgg ? prevAgg.in - prevAgg.out - prevAgg.save - prevAgg.inv : undefined;
 
   // ---- Série dos últimos 12 meses (a terminar no mês selecionado)
   const series = useMemo(() => {
     const end = month === "all" ? monthsAsc.length : monthsAsc.indexOf(month) + 1;
     const win = monthsAsc.slice(Math.max(0, end - 12), end);
     return win.map((m) => {
-      const a = aggByMonth.get(m) ?? { in: 0, out: 0, save: 0 };
+      const a = aggByMonth.get(m) ?? { in: 0, out: 0, save: 0, inv: 0 };
       return { m, label: monthShort(m), rendimento: Math.round(a.in), gastos: Math.round(a.out) };
     });
   }, [monthsAsc, month, aggByMonth]);
@@ -169,10 +176,11 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of inMonth) {
-      if (isSavings(r.category)) continue;
+      const cat = categoriaEfetiva(r);
+      if (isSavings(cat)) continue;
       const p = pesoNoGasto(r);
       if (p === 0) continue;
-      map.set(r.category, (map.get(r.category) ?? 0) + p);
+      map.set(cat, (map.get(cat) ?? 0) + p);
     }
     return Array.from(map.entries())
       .map(([category, value]) => ({ category, value: Math.round(value * 100) / 100 }))
@@ -194,7 +202,7 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
     for (const r of inMonth) {
       const p = pesoNoGasto(r);
       if (p === 0) continue;
-      const t = typeOf(r.category);
+      const t = typeOf(categoriaEfetiva(r));
       map.set(t, (map.get(t) ?? 0) + p);
     }
     const total = Array.from(map.values()).reduce((a, b) => a + b, 0);
@@ -212,9 +220,10 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
     const sum = (m: string) => {
       const map = new Map<string, number>();
       for (const r of spaceRows) {
-        if (monthOf(r.date) !== m || isSavings(r.category)) continue;
+        const cat = categoriaEfetiva(r);
+        if (monthOf(r.date) !== m || isSavings(cat)) continue;
         const p = pesoNoGasto(r);
-        if (p !== 0) map.set(r.category, (map.get(r.category) ?? 0) + p);
+        if (p !== 0) map.set(cat, (map.get(cat) ?? 0) + p);
       }
       return map;
     };
@@ -311,12 +320,12 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
           <DeltaAbs cur={saldo} prev={prevSaldo} />
         </div>
         <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-          Entrou {eur(entradas)} · saiu {eur(gastosReais)} em gastos · {eur(poupado)} para poupança
+          Entrou {eur(entradas)} · saiu {eur(gastosReais)} em gastos · {eur(poupado)} para poupança · {eur(investido)} investido
         </div>
       </div>
 
       {/* KPIs com variação */}
-      <div className="tiles" style={{ marginTop: 12 }}>
+      <div className="tiles tiles-4" style={{ marginTop: 12 }}>
         <div className="tile">
           <div className="label">Rendimento</div>
           <div className="big num" style={{ color: "var(--good)" }}>{eur(entradas)}</div>
@@ -331,6 +340,11 @@ export default function Dashboard({ rows, space }: { rows: Expense[]; space: str
           <div className="label">Poupado</div>
           <div className="big num" style={{ color: "var(--accent-2)" }}>{eur(poupado)}</div>
           <Delta value={delta(poupado, prevAgg?.save)} goodWhenUp={true} />
+        </div>
+        <div className="tile">
+          <div className="label">Investido</div>
+          <div className="big num" style={{ color: "var(--good)" }}>{eur(investido)}</div>
+          <Delta value={delta(investido, prevAgg?.inv)} goodWhenUp={true} />
         </div>
       </div>
 

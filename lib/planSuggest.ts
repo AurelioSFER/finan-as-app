@@ -3,7 +3,7 @@
 // (um seguro, uma avaria) puxava a média para cima e o plano ficava folgado
 // de mais todos os meses.
 
-import { typeOf, contaComoEntrada, isTransfer, pesoNoGasto, type Expense } from "./categories";
+import { typeOf, contaComoEntrada, isTransfer, pesoNoGasto, categoriaEfetiva, type Expense } from "./categories";
 import { RUBRICAS, type Extra, type Rubrica } from "./plan";
 
 export type Stat = {
@@ -72,11 +72,11 @@ export function analisar(rows: Expense[], alvo: string, janela = 6): Analise {
 
   const rubricas: Record<string, Stat> = {};
   for (const k of [...RUBRICAS, "Poupança"]) {
-    rubricas[k] = stat(meses.map((m) => ({ m, v: soma(m, (r) => typeOf(r.category) === k) })));
+    rubricas[k] = stat(meses.map((m) => ({ m, v: soma(m, (r) => typeOf(categoriaEfetiva(r)) === k) })));
   }
 
   const porClassificar = stat(
-    meses.map((m) => ({ m, v: soma(m, (r) => typeOf(r.category) === "Por classificar") }))
+    meses.map((m) => ({ m, v: soma(m, (r) => typeOf(categoriaEfetiva(r)) === "Por classificar") }))
   );
 
   const rendimento = stat(
@@ -116,9 +116,10 @@ export function medianaPorCategoria(rows: Expense[], alvo: string, janela = 6): 
     if (v === 0) continue;
     const m = monthOf(r.date);
     if (!naJanela.has(m)) continue;
-    const mm = porCat.get(r.category) ?? new Map<string, number>();
+    const cat = categoriaEfetiva(r);
+    const mm = porCat.get(cat) ?? new Map<string, number>();
     mm.set(m, (mm.get(m) ?? 0) + v);
-    porCat.set(r.category, mm);
+    porCat.set(cat, mm);
   }
 
   const out: Record<string, number> = {};
