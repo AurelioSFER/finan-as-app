@@ -57,6 +57,8 @@ export default function Import({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [lendoImagem, setLendoImagem] = useState(false);
+  const [avisos, setAvisos] = useState<string[]>([]);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -72,17 +74,75 @@ export default function Import({
     e.target.value = "";
   }
 
-  function analisar(text: string = raw) {
+  /**
+   * Um print não tem formato fixo como um CSV: a leitura é feita no servidor
+   * (a chave da API não pode viver no browser) e o resultado cai na mesma
+   * tabela de revisão, para confirmares antes de gravar.
+   */
+  async function onImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
     setError(null);
     setSavedCount(null);
-    const { rows, format, skipped } = parseStatement(text, space);
-    if (rows.length === 0) {
-      setError("Não consegui ler movimentos. Confirma que colaste o extrato da Caixa ou da Revolut.");
-      return;
+    setAvisos([]);
+    setLendoImagem(true);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? "").split(",")[1] ?? "");
+        reader.onerror = () => reject(new Error("Não consegui ler o ficheiro."));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/extrato-imagem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: base64,
+          mediaType: file.type,
+          ano: new Date().getFullYear(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Não consegui ler a imagem.");
+        return;
+      }
+
+      const rows: ParsedRow[] = (data.movimentos ?? []).map((m: any) => ({
+        date: m.date,
+        description: m.description,
+        amount: m.amount,
+        kind: m.kind,
+        isTransfer: false,
+        toAccount: null,
+      }));
+
+      if (rows.length === 0) {
+        setError("Não encontrei movimentos nesta imagem.");
+        setAvisos(data.avisos ?? []);
+        return;
+      }
+
+      montarDrafts(rows, "Imagem");
+      const av = [...(data.avisos ?? [])];
+      if (data.descartados > 0) av.push(`${data.descartados} linha(s) vieram incompletas e ficaram de fora.`);
+      setAvisos(av);
+    } catch {
+      setError("Não consegui ler a imagem.");
+    } finally {
+      setLendoImagem(false);
     }
+  }
+
+  /** Transforma movimentos lidos (de texto ou de imagem) em linhas para rever. */
+  function montarDrafts(rows: ParsedRow[], formato: string) {
     // Quando o extrato diz que houve transferência mas não diz para onde, o
     // palpite é a outra conta principal — corriges na coluna Destino.
-    const palpite = format === "Revolut" ? "Caixa" : "Revolut";
+    const palpite = formato === "Revolut" ? "Caixa" : "Revolut";
 
     const d: Draft[] = rows.map((r) => {
       const key = merchantKey(r.description);
@@ -97,8 +157,20 @@ export default function Import({
       };
     });
     setDrafts(d);
-    setFormat(format);
+    setFormat(formato);
+  }
+
+  function analisar(text: string = raw) {
+    setError(null);
+    setSavedCount(null);
+    const { rows, format, skipped } = parseStatement(text, space);
+    if (rows.length === 0) {
+      setError("Não consegui ler movimentos. Confirma que colaste o extrato da Caixa ou da Revolut.");
+      return;
+    }
+    montarDrafts(rows, format);
     setSkipped(skipped);
+    setAvisos([]);
     if (defaultAccount !== "Conjunta") setAccount(format === "Revolut" ? "Revolut" : "Caixa");
   }
 
@@ -188,6 +260,26 @@ export default function Import({
           </span>
         </label>
 
+        <label className="uploader" style={{ marginTop: 12, opacity: lendoImagem ? 0.6 : 1 }}>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={onImage}
+            disabled={lendoImagem}
+            hidden
+          />
+          <span className="up-ic">{lendoImagem ? "⏳" : "📷"}</span>
+          <span>
+            <b>{lendoImagem ? "A ler o print…" : "Anexar print dos movimentos"}</b>
+            <br />
+            <span className="muted" style={{ fontSize: 12.5 }}>
+              {lendoImagem
+                ? "Pode demorar até meio minuto"
+                : "Para contas sem exportação, como o cartão de refeição"}
+            </span>
+          </span>
+        </label>
+
         <details style={{ marginTop: 14 }}>
           <summary className="muted" style={{ cursor: "pointer", fontSize: 13.5 }}>
             ou colar o texto manualmente
@@ -244,6 +336,18 @@ export default function Import({
           </button>
         </div>
         {error && <div className="error" style={{ marginTop: 10 }}>{error}</div>}
+        {avisos.length > 0 && (
+          // A leitura de um print pode falhar linhas. Dizer quais, em vez de
+          // deixar o utilizador descobrir que faltam movimentos semanas depois.
+          <div className="notice" style={{ marginTop: 10 }}>
+            <b>A leitura deixou avisos:</b>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {avisos.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="card tbl-wrap tbl-cards cards-draft" style={{ marginBottom: 14 }}>
