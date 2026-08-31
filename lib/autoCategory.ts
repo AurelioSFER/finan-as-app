@@ -15,6 +15,7 @@ const RULES: Array<{ words: string[]; category: string }> = [
   { category: "Combustível", words: ["galp", "repsol", "cepsa", "prio", " bp ", "gasolin", "posto", "p.a", "combusti", "petrogal"] },
   { category: "Carro", words: ["lavagem", "lava auto", "lava-auto", "lavauto", "car wash", "carwash", "oficina", "pneus", "kim pneus", "controlauto", "inspecao", "via verde", "portagem", "brisa", "estacionamento", "parque de est"] },
   { category: "Cão", words: ["kiwoko", "tiendanimal", "masquepet", "wepet", "maspet", "veterinar", "clinica vet", " pet ", "animal"] },
+  { category: "Cabeleireiro", words: ["cabeleireir", "barbearia", "barbeiro", "barber", " hair", "salao de beleza", "estetica"] },
   { category: "Saúde", words: ["farmacia", "parafarm", "hospital", "clinica", "dentist", "analises", "wells", "medic", "hosp luz"] },
   { category: "Ginásio", words: ["ginasio", "fitness", " gym", "ctflex", "holmes", "smartclub", "fitnesshut"] },
   { category: "Subscrições", words: ["netflix", "spotify", "hbo", "disney", "youtube", "chatgpt", "openai", "claude", "anthropic", "icloud", "apple.com", "prime video", "dazn"] },
