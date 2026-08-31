@@ -192,7 +192,11 @@ export default function Import({
       motivo: r.motivo,
     }));
 
-    const d2 = [...d, ...dd];
+    // Ordenar por data, do mais recente para o mais antigo — a mesma ordem do
+    // resto da app. Cada banco exporta numa direção diferente, e as linhas
+    // descartadas ficariam todas no fim: ao lado umas das outras percebe-se
+    // que um +100 e um −100 do mesmo dia são o mesmo movimento.
+    const d2 = [...d, ...dd].sort((a, b) => b.date.localeCompare(a.date));
     setDrafts(d2);
     setFormat(formato);
     return d2;
