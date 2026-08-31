@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { isGoalCategory, type Expense } from "@/lib/categories";
+import { ACCOUNTS, FLAGS, isGoalCategory, type Expense } from "@/lib/categories";
 import { merchantKey } from "@/lib/merchantKey";
 import CategorySelect from "@/components/CategorySelect";
 
@@ -51,9 +51,34 @@ export default function Expenses({
     });
   }, [spaceRows, fMonth, fCat, fText]);
 
+  /**
+   * Grava uma alteração num movimento já guardado. Mostra já na lista e
+   * repõe se a gravação falhar — sem isto, o ecrã dizia uma coisa e a base
+   * de dados outra, e só se descobria no mês seguinte.
+   */
+  async function patch(row: Expense, campos: Partial<Expense>) {
+    const antes = rows;
+    setError(null);
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...campos } : r)));
+    const { error } = await supabase.from("expenses").update(campos).eq("id", row.id);
+    if (error) {
+      setError(error.message);
+      setRows(antes);
+      return false;
+    }
+    return true;
+  }
+
+  async function changeFlag(row: Expense, flag: string) {
+    await patch(row, { flag: flag || null });
+  }
+
+  async function changeDestino(row: Expense, destino: string) {
+    await patch(row, { to_account: destino || null });
+  }
+
   async function changeCategory(row: Expense, category: string) {
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, category } : r)));
-    await supabase.from("expenses").update({ category }).eq("id", row.id);
+    if (!(await patch(row, { category }))) return;
     // Objetivos não se aprendem: a meta fecha-se um dia e a regra ficaria a
     // mandar movimentos para um objetivo que já não existe.
     if (category !== "Outros" && !isGoalCategory(category)) {
@@ -107,6 +132,8 @@ export default function Expenses({
               <th>Data</th>
               <th>Descrição</th>
               <th>Categoria</th>
+              <th>Destino</th>
+              <th>Flag</th>
               <th className="n">Valor</th>
               <th></th>
             </tr>
@@ -114,7 +141,7 @@ export default function Expenses({
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted td-empty" style={{ textAlign: "center", padding: 28 }}>
+                <td colSpan={7} className="muted td-empty" style={{ textAlign: "center", padding: 28 }}>
                   Sem movimentos. Importa o extrato do banco. 👆
                 </td>
               </tr>
@@ -128,7 +155,46 @@ export default function Expenses({
                   {r.flag === "P" && <span className="badge P" style={{ marginLeft: 6 }}>P</span>}
                 </td>
                 <td className="td-cat">
-                  <CategorySelect value={r.category} onChange={(v) => changeCategory(r, v)} goals={goals} />
+                  {r.to_account ? (
+                    <span className="muted" style={{ fontSize: 13 }}>transferência</span>
+                  ) : (
+                    <CategorySelect value={r.category} onChange={(v) => changeCategory(r, v)} goals={goals} />
+                  )}
+                </td>
+                <td className="td-dest">
+                  <select
+                    className="select sel-dest"
+                    aria-label="Conta de destino (transferência)"
+                    title="Conta para onde o dinheiro foi. Em branco, o movimento conta como gasto."
+                    value={r.to_account ?? ""}
+                    onChange={(e) => changeDestino(r, e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {ACCOUNTS.filter((a) => a !== r.account).map((a) => (
+                      <option key={a} value={a}>
+                        ↗ {a}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="td-flag">
+                  <select
+                    className="select sel-flag"
+                    aria-label="Marca (reembolso / prenda)"
+                    title={
+                      r.kind === "entrada"
+                        ? "Reembolso: esta entrada deixa de ser rendimento e abate ao gasto da mesma categoria."
+                        : "Reembolsado: este gasto não conta. Usar só quando a devolução não entra na app."
+                    }
+                    value={r.flag ?? ""}
+                    onChange={(e) => changeFlag(r, e.target.value)}
+                  >
+                    {FLAGS.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className={"n td-amt " + (r.kind === "entrada" ? "amount-in" : "amount-out")}>
                   {r.kind === "entrada" ? "+" : "−"}

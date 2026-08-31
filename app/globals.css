@@ -223,6 +223,8 @@ tr:last-child td { border-bottom: none; }
   .cards-mov .td-del { grid-column: 2; grid-row: 2; }
   /* a categoria leva a linha toda: o nome mais comprido ainda cabe a 320px */
   .cards-mov .td-cat { grid-column: 1 / -1; grid-row: 3; }
+  .cards-mov .td-dest { grid-column: 1 / -1; grid-row: 4; }
+  .cards-mov .td-flag { grid-column: 1 / -1; grid-row: 5; }
   .cards-mov .td-empty { grid-column: 1 / -1; text-align: center; }
 
   .cards-draft tr { grid-template-columns: auto minmax(0, 1fr) auto; }
